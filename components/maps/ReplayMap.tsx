@@ -1,9 +1,28 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
-import MapView, { Polyline, Marker } from 'react-native-maps';
+import MapLibre, { CameraRef } from '@maplibre/maplibre-react-native';
 import { Coordinate } from '@/lib/types';
 import { Colors, FontSize, Spacing, BorderRadius } from '@/constants/colors';
-import { LinearGradient } from 'expo-linear-gradient';
+
+const DETAILED_FREE_STYLE = {
+    version: 8,
+    sources: {
+        'osm': {
+            type: 'raster',
+            tiles: ['https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'],
+            tileSize: 256,
+        }
+    },
+    layers: [
+        {
+            id: 'osm-layer',
+            type: 'raster',
+            source: 'osm',
+            minzoom: 0,
+            maxzoom: 20
+        }
+    ]
+};
 
 interface ReplayMapProps {
     coordinates: Coordinate[];
@@ -14,12 +33,16 @@ interface ReplayMapProps {
 export function ReplayMap({ coordinates, height = 400, onClose }: ReplayMapProps) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isPlaying, setIsPlaying] = useState(true);
-    const mapRef = useRef<MapView>(null);
+    const mapRef = useRef<CameraRef>(null);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const validCoords = useMemo(() => coordinates
+        .filter(c => c && typeof c.lat === 'number' && typeof c.lng === 'number')
+        .map(c => [c.lng, c.lat] as [number, number]), [coordinates]);
 
     const animate = () => {
         setCurrentIndex((prev) => {
-            if (prev >= coordinates.length - 1) {
+            if (prev >= validCoords.length - 1) {
                 setIsPlaying(false);
                 if (timerRef.current) clearInterval(timerRef.current);
                 return prev;
@@ -37,65 +60,82 @@ export function ReplayMap({ coordinates, height = 400, onClose }: ReplayMapProps
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
         };
-    }, [isPlaying]);
+    }, [isPlaying, validCoords.length]);
 
     useEffect(() => {
         // Auto-center map on runner
-        if (mapRef.current && coordinates[currentIndex]) {
-            mapRef.current.animateToRegion({
-                latitude: coordinates[currentIndex].lat,
-                longitude: coordinates[currentIndex].lng,
-                latitudeDelta: 0.005,
-                longitudeDelta: 0.005,
-            }, 100);
+        if (mapRef.current && validCoords[currentIndex]) {
+            mapRef.current.setCamera({
+                centerCoordinate: validCoords[currentIndex],
+                zoomLevel: 17,
+                animationDuration: 100,
+            });
         }
-    }, [currentIndex]);
+    }, [currentIndex, validCoords]);
 
-    const activeCoords = coordinates.slice(0, currentIndex + 1);
+    if (validCoords.length === 0) return null;
+
+    const activeCoords = validCoords.slice(0, currentIndex + 1);
 
     return (
         <View style={[styles.container, { height }]}>
-            <MapView
-                ref={mapRef}
+            <MapLibre.MapView
                 style={styles.map}
-                initialRegion={{
-                    latitude: coordinates[0].lat,
-                    longitude: coordinates[0].lng,
-                    latitudeDelta: 0.01,
-                    longitudeDelta: 0.01,
-                }}
+                mapStyle={DETAILED_FREE_STYLE}
+                logoEnabled={false}
+                attributionEnabled={false}
+                pitchEnabled={false}
+                surfaceView={true}
             >
-                <Polyline
-                    coordinates={activeCoords.map(c => ({ latitude: c.lat, longitude: c.lng }))}
-                    strokeColor={Colors.accent}
-                    strokeWidth={4}
-                />
-                <Marker
-                    coordinate={{
-                        latitude: coordinates[currentIndex].lat,
-                        longitude: coordinates[currentIndex].lng,
+                <MapLibre.Camera
+                    ref={mapRef}
+                    defaultSettings={{
+                        centerCoordinate: validCoords[0],
+                        zoomLevel: 17,
                     }}
-                    anchor={{ x: 0.5, y: 0.5 }}
-                >
+                />
+
+                {activeCoords.length >= 2 && (
+                    <MapLibre.ShapeSource
+                        id="replayRouteSource"
+                        shape={{
+                            type: 'Feature',
+                            geometry: { type: 'LineString', coordinates: activeCoords },
+                            properties: {}
+                        }}
+                    >
+                        <MapLibre.LineLayer
+                            id="replayRouteLayer"
+                            style={{
+                                lineColor: Colors.accent,
+                                lineWidth: 4,
+                                lineJoin: 'round',
+                                lineCap: 'round',
+                            }}
+                        />
+                    </MapLibre.ShapeSource>
+                )}
+
+                <MapLibre.MarkerView coordinate={validCoords[currentIndex]} anchor={{ x: 0.5, y: 0.5 }}>
                     <View style={styles.runnerContainer}>
                         <View style={styles.runnerPulse} />
                         <View style={styles.runnerDot} />
                     </View>
-                </Marker>
-            </MapView>
+                </MapLibre.MarkerView>
+            </MapLibre.MapView>
 
             <View style={styles.controls}>
                 <TouchableOpacity
                     style={styles.controlBtn}
                     onPress={() => {
-                        if (currentIndex >= coordinates.length - 1) setCurrentIndex(0);
+                        if (currentIndex >= validCoords.length - 1) setCurrentIndex(0);
                         setIsPlaying(!isPlaying);
                     }}
                 >
                     <Text style={styles.controlIcon}>{isPlaying ? '⏸' : '▶'}</Text>
                 </TouchableOpacity>
                 <View style={styles.progressContainer}>
-                    <View style={[styles.progressBar, { width: `${(currentIndex / coordinates.length) * 100}%` }]} />
+                    <View style={[styles.progressBar, { width: `${(currentIndex / validCoords.length) * 100}%` }]} />
                 </View>
                 <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
                     <Text style={styles.closeText}>✕</Text>
@@ -134,7 +174,7 @@ const styles = StyleSheet.create({
         borderRadius: 6,
         backgroundColor: Colors.accent,
         borderWidth: 2,
-        borderColor: Colors.textPrimary,
+        borderColor: Colors.background,
     },
     controls: {
         position: 'absolute',

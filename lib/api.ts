@@ -30,9 +30,10 @@ function getApiBaseUrl(): string {
     return `http://localhost:${API_PORT}`;
 }
 
-const API_BASE = getApiBaseUrl();
+const API_BASE = `${getApiBaseUrl()}/v1`;
 
 const TOKEN_KEY = 'auth_token';
+const REFRESH_TOKEN_KEY = 'refresh_token';
 const REQUEST_TIMEOUT_MS = 15000;
 
 // Token management
@@ -41,39 +42,52 @@ async function getToken(): Promise<string | null> {
         if (Platform.OS === 'web') {
             return localStorage.getItem(TOKEN_KEY);
         }
-        const promise = SecureStore.getItemAsync(TOKEN_KEY);
-        const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000));
-        return await Promise.race([promise, timeout]);
+        return await SecureStore.getItemAsync(TOKEN_KEY);
     } catch {
         return null;
     }
 }
 
-async function setToken(token: string): Promise<void> {
+async function getRefreshToken(): Promise<string | null> {
     try {
         if (Platform.OS === 'web') {
-            localStorage.setItem(TOKEN_KEY, token);
-            return;
+            return localStorage.getItem(REFRESH_TOKEN_KEY);
         }
-        const promise = SecureStore.setItemAsync(TOKEN_KEY, token);
-        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000));
-        await Promise.race([promise, timeout]);
+        return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
     } catch {
-        console.warn('Failed to save token');
+        return null;
     }
 }
 
-async function removeToken(): Promise<void> {
+async function setTokens(accessToken: string, refreshToken: string): Promise<void> {
+    try {
+        if (Platform.OS === 'web') {
+            localStorage.setItem(TOKEN_KEY, accessToken);
+            localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+            return;
+        }
+        await Promise.all([
+            SecureStore.setItemAsync(TOKEN_KEY, accessToken),
+            SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken)
+        ]);
+    } catch {
+        console.warn('Failed to save tokens');
+    }
+}
+
+async function removeTokens(): Promise<void> {
     try {
         if (Platform.OS === 'web') {
             localStorage.removeItem(TOKEN_KEY);
+            localStorage.removeItem(REFRESH_TOKEN_KEY);
             return;
         }
-        const promise = SecureStore.deleteItemAsync(TOKEN_KEY);
-        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000));
-        await Promise.race([promise, timeout]);
+        await Promise.all([
+            SecureStore.deleteItemAsync(TOKEN_KEY),
+            SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY)
+        ]);
     } catch {
-        console.warn('Failed to remove token');
+        console.warn('Failed to remove tokens');
     }
 }
 
@@ -89,25 +103,28 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
         headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const controller = new AbortController();
+    const controller = options.signal ? null : new AbortController();
+    const signal = options.signal || controller?.signal;
     const timeoutMsg = `Request timed out. Make sure your API server is reachable at ${API_BASE} (set EXPO_PUBLIC_API_BASE_URL if needed).`;
 
     const fetchPromise = fetch(`${API_BASE}${path}`, {
         ...options,
         headers,
-        signal: controller.signal,
+        signal,
     });
 
-    const timeoutPromise = new Promise<never>((_, reject) => {
+    const timeoutPromise = options.signal ? null : new Promise<never>((_, reject) => {
         setTimeout(() => {
-            controller.abort();
+            controller?.abort();
             reject(new Error(timeoutMsg));
         }, REQUEST_TIMEOUT_MS);
     });
 
     let response: Response;
     try {
-        response = await Promise.race([fetchPromise, timeoutPromise]);
+        response = timeoutPromise
+            ? await Promise.race([fetchPromise, timeoutPromise])
+            : await fetchPromise;
     } catch (err: any) {
         if (err.message === timeoutMsg) {
             throw err;
@@ -128,6 +145,27 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
     const data = await response.json();
 
     if (!response.ok) {
+        // Silent Refresh Logic
+        if (response.status === 401 && data.code === 'TOKEN_EXPIRED' && !path.includes('/auth/refresh')) {
+            const refreshToken = await getRefreshToken();
+            if (refreshToken) {
+                try {
+                    const refreshRes = await fetch(`${API_BASE}/auth/refresh`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ refreshToken }),
+                    });
+                    if (refreshRes.ok) {
+                        const refreshData = await refreshRes.json();
+                        await setTokens(refreshData.token, refreshData.refreshToken);
+                        // Retry original request with new token
+                        return apiFetch(path, options);
+                    }
+                } catch (err) {
+                    console.warn('Silent refresh failed', err);
+                }
+            }
+        }
         throw new Error(data.error || `Request failed with status ${response.status}`);
     }
 
@@ -142,7 +180,7 @@ export const auth = {
             method: 'POST',
             body: JSON.stringify({ email, password, name }),
         });
-        await setToken(data.token);
+        await setTokens(data.token, data.refreshToken);
         return { user: data.user, token: data.token };
     },
 
@@ -151,12 +189,12 @@ export const auth = {
             method: 'POST',
             body: JSON.stringify({ email, password }),
         });
-        await setToken(data.token);
+        await setTokens(data.token, data.refreshToken);
         return { user: data.user, token: data.token };
     },
 
     signOut: async () => {
-        await removeToken();
+        await removeTokens();
     },
 
     changePassword: async (currentPassword: string, newPassword: string) => {
@@ -170,27 +208,31 @@ export const auth = {
         const result = await apiFetch('/auth/account', {
             method: 'DELETE',
         });
-        await removeToken();
+        await removeTokens();
         return result;
     },
 
-    getUser: async () => {
+    getUser: async (signal?: AbortSignal) => {
         try {
-            const user = await apiFetch('/auth/me');
+            const user = await apiFetch('/auth/me', { signal });
             return user;
         } catch {
             return null;
         }
     },
 
-    getSession: async () => {
+    getSession: async (signal?: AbortSignal) => {
         const token = await getToken();
         if (!token) return null;
         try {
-            const user = await apiFetch('/auth/me');
+            const user = await apiFetch('/auth/me', { signal });
             return { token, user };
-        } catch {
-            await removeToken();
+        } catch (err: any) {
+            // ONLY clear tokens if the server explicitly says the token is invalid
+            // DO NOT clear tokens on network timeouts or server errors
+            if (err.message?.includes('401') || err.message?.includes('Invalid token')) {
+                await removeTokens();
+            }
             return null;
         }
     },
@@ -206,8 +248,8 @@ export const auth = {
 // ============ RUNS API ============
 
 export const runsApi = {
-    getAll: async () => {
-        return await apiFetch('/runs');
+    getAll: async (signal?: AbortSignal) => {
+        return await apiFetch('/runs', { signal });
     },
 
     save: async (runData: any) => {
@@ -217,10 +259,10 @@ export const runsApi = {
         });
     },
 
-    updateNotes: async (id: string, notes: string) => {
+    update: async (id: string, updates: { notes?: string | null; name?: string | null }) => {
         return await apiFetch(`/runs/${id}`, {
             method: 'PUT',
-            body: JSON.stringify({ notes }),
+            body: JSON.stringify(updates),
         });
     },
 
@@ -234,8 +276,8 @@ export const runsApi = {
 // ============ GOALS API ============
 
 export const goalsApi = {
-    getAll: async () => {
-        return await apiFetch('/goals');
+    getAll: async (signal?: AbortSignal) => {
+        return await apiFetch('/goals', { signal });
     },
 
     create: async (goalData: any) => {
@@ -262,8 +304,8 @@ export const goalsApi = {
 // ============ ACHIEVEMENTS API ============
 
 export const achievementsApi = {
-    getAll: async () => {
-        return await apiFetch('/achievements');
+    getAll: async (signal?: AbortSignal) => {
+        return await apiFetch('/achievements', { signal });
     },
 
     create: async (badge_type: string) => {
@@ -277,8 +319,12 @@ export const achievementsApi = {
 // ============ SHOES API ============
 
 export const shoesApi = {
-    getAll: async () => {
-        return await apiFetch('/shoes');
+    getAll: async (signal?: AbortSignal) => {
+        return await apiFetch('/shoes', { signal });
+    },
+
+    getById: async (id: string) => {
+        return await apiFetch(`/shoes/${id}`);
     },
 
     create: async (shoeData: { name: string; brand: string; max_km?: number }) => {
@@ -290,7 +336,7 @@ export const shoesApi = {
 
     update: async (id: string, updates: any) => {
         return await apiFetch(`/shoes/${id}`, {
-            method: 'PUT',
+            method: 'PATCH',
             body: JSON.stringify(updates),
         });
     },
@@ -301,12 +347,8 @@ export const shoesApi = {
         });
     },
 
-    retire: async (id: string) => {
-        return await apiFetch(`/shoes/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify({ is_active: false }),
-        });
-    },
+    deactivate: (id: string) => shoesApi.update(id, { is_active: false }),
+    retire: (id: string) => shoesApi.update(id, { is_active: false }),
 };
 
 // ============ SYSTEM API ============

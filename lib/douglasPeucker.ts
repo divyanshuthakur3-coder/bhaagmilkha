@@ -8,6 +8,7 @@ function perpendicularDistance(
     lineStart: Coordinate,
     lineEnd: Coordinate
 ): number {
+    'worklet';
     const dx = lineEnd.lng - lineStart.lng;
     const dy = lineEnd.lat - lineStart.lat;
 
@@ -50,6 +51,7 @@ export function douglasPeucker(
     coordinates: Coordinate[],
     epsilon: number = 5
 ): Coordinate[] {
+    'worklet';
     if (coordinates.length <= 2) return coordinates;
 
     // Find the point with the maximum distance from the line

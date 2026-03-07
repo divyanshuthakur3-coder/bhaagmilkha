@@ -1,127 +1,154 @@
-import React from 'react';
-import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet, Platform } from 'react-native';
-import { FontSize, Spacing } from '@/constants/colors';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@/context/ThemeContext';
+import React, { useRef, useEffect } from "react";
+import { Tabs } from "expo-router";
+import { View, Text, StyleSheet, Platform, Animated } from "react-native";
+import * as Haptics from "expo-haptics";
+import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/context/ThemeContext";
+import { Spacing } from "@/constants/colors";
 
-function TabIcon({ icon, label, focused }: { icon: keyof typeof Ionicons.glyphMap; label: string; focused: boolean }) {
+type IconName = keyof typeof Ionicons.glyphMap;
+
+interface TabIconProps {
+    icon: IconName;
+    label: string;
+    focused: boolean;
+}
+
+function TabIcon({ icon, label, focused }: TabIconProps) {
     const { colors: Colors } = useTheme();
+    const scaleAnim = useRef(new Animated.Value(1)).current;
+
+    useEffect(() => {
+        Animated.spring(scaleAnim, {
+            toValue: focused ? 1.15 : 1,
+            useNativeDriver: true,
+            friction: 6,
+            tension: 60,
+        }).start();
+    }, [focused]);
+
+    const iconName = focused ? icon : (`${icon}-outline` as IconName);
+
     return (
         <View style={styles.tabItem}>
-            <View style={[styles.iconContainer, focused && { backgroundColor: Colors.accentGlow }]}>
+            <Animated.View
+                style={[
+                    styles.iconContainer,
+                    focused && { backgroundColor: Colors.accentGlow },
+                    { transform: [{ scale: scaleAnim }] },
+                ]}
+            >
                 <Ionicons
-                    name={focused ? icon : `${icon}-outline` as any}
-                    size={20}
-                    color={focused ? Colors.accent : Colors.textMuted}
+                    name={iconName}
+                    size={22}
+                    color={focused ? Colors.textPrimary : Colors.textMuted}
                 />
-            </View>
-            <Text style={[styles.tabLabel, { color: focused ? Colors.accent : Colors.textMuted, fontWeight: focused ? '700' : '500' }]}>{label}</Text>
+            </Animated.View>
+
+            <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                style={[
+                    styles.tabLabel,
+                    {
+                        color: focused ? Colors.textPrimary : Colors.textMuted,
+                        fontWeight: focused ? "800" : "600",
+                    },
+                ]}
+            >
+                {label}
+            </Text>
         </View>
     );
 }
 
 export default function TabLayout() {
     const { colors: Colors } = useTheme();
+
+    const handleTabPress = () =>
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const tabs = [
+        { name: "index", icon: "home", label: "Home" },
+        { name: "history", icon: "calendar", label: "History" },
+        { name: "goals", icon: "trophy", label: "Goals" },
+        { name: "analytics", icon: "stats-chart", label: "Stats" },
+        { name: "profile", icon: "person", label: "Profile" },
+    ] as const;
+
     return (
         <Tabs
             screenOptions={{
                 headerShown: false,
+                tabBarShowLabel: false,
                 tabBarStyle: [
                     styles.tabBar,
                     {
-                        backgroundColor: Colors.surface,
-                        borderTopColor: Colors.border,
-                        borderTopWidth: 1,
-                        shadowColor: Colors.accent,
-                    }
+                        backgroundColor: "rgba(18, 18, 26, 0.85)",
+                        borderColor: Colors.borderLight,
+                    },
                 ],
-                tabBarShowLabel: false,
-                tabBarActiveTintColor: Colors.accent,
+                tabBarItemStyle: styles.tabBarItem,
+                tabBarActiveTintColor: Colors.textPrimary,
                 tabBarInactiveTintColor: Colors.textMuted,
             }}
         >
-            <Tabs.Screen
-                name="index"
-                options={{
-                    title: 'Home',
-                    tabBarIcon: ({ focused }) => (
-                        <TabIcon icon="home" label="Home" focused={focused} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="history"
-                options={{
-                    title: 'History',
-                    tabBarIcon: ({ focused }) => (
-                        <TabIcon icon="calendar" label="History" focused={focused} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="goals"
-                options={{
-                    title: 'Goals',
-                    tabBarIcon: ({ focused }) => (
-                        <TabIcon icon="trophy" label="Goals" focused={focused} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="analytics"
-                options={{
-                    title: 'Analytics',
-                    tabBarIcon: ({ focused }) => (
-                        <TabIcon icon="stats-chart" label="Stats" focused={focused} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="profile"
-                options={{
-                    title: 'Profile',
-                    tabBarIcon: ({ focused }) => (
-                        <TabIcon icon="person" label="Profile" focused={focused} />
-                    ),
-                }}
-            />
+            {tabs.map((tab) => (
+                <Tabs.Screen
+                    key={tab.name}
+                    name={tab.name}
+                    options={{
+                        title: tab.label,
+                        tabBarIcon: ({ focused }) => (
+                            <TabIcon icon={tab.icon} label={tab.label} focused={focused} />
+                        ),
+                    }}
+                    listeners={{ tabPress: handleTabPress }}
+                />
+            ))}
         </Tabs>
     );
 }
 
 const styles = StyleSheet.create({
     tabBar: {
-        height: Platform.OS === 'ios' ? 90 : 70,
-        paddingTop: 6,
-        paddingBottom: Platform.OS === 'ios' ? 28 : 8,
-        elevation: 0,
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
+        position: "absolute",
+        bottom: Platform.OS === "ios" ? 32 : 24,
+        left: Spacing.xl,
+        right: Spacing.xl,
+        height: 72,
+        borderRadius: 36,
+        borderWidth: 1,
+        elevation: 10,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.6,
+        shadowRadius: 24,
     },
+
+    tabBarItem: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        height: 72,
+    },
+
     tabItem: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 3,
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 2,
     },
+
     iconContainer: {
-        width: 36,
+        width: 44,
         height: 28,
         borderRadius: 14,
-        alignItems: 'center',
-        justifyContent: 'center',
+        alignItems: "center",
+        justifyContent: "center",
     },
-    tabIcon: {
-        fontSize: 18,
-        opacity: 0.5,
-    },
-    tabIconActive: {
-        opacity: 1,
-        fontSize: 20,
-    },
+
     tabLabel: {
-        fontSize: FontSize.xs,
-        fontWeight: '500',
+        fontSize: 10,
+        textAlign: "center",
     },
 });

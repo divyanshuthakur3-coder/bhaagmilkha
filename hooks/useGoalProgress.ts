@@ -82,6 +82,16 @@ export function useGoalProgress(goals: Goal[], runs: Run[]): GoalProgress[] {
                         displayLabel = `${streak} / ${goal.target_value} days`;
                         break;
                     }
+                    case 'weekly_time': {
+                        currentValue = thisWeekRuns.reduce((sum, r) => sum + r.duration_seconds / 3600, 0);
+                        displayLabel = `${currentValue.toFixed(1)} / ${goal.target_value} hrs`;
+                        break;
+                    }
+                    case 'weekly_run_count': {
+                        currentValue = thisWeekRuns.length;
+                        displayLabel = `${currentValue} / ${goal.target_value} runs`;
+                        break;
+                    }
                 }
 
                 const percentage = Math.min(100, (currentValue / goal.target_value) * 100);

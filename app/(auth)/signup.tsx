@@ -16,6 +16,8 @@ import { useTheme } from '@/context/ThemeContext';
 import { auth } from '@/lib/api';
 import { useUserStore } from '@/store/useUserStore';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Ionicons } from '@expo/vector-icons';
 import { FontSize, Spacing, BorderRadius, Shadows } from '@/constants/colors';
 
 function getPasswordStrength(password: string, colors: any) {
@@ -98,100 +100,67 @@ export default function SignUpScreen() {
                         <View style={styles.header}>
                             <Text style={[styles.title, { color: Colors.textPrimary }]}>Create Account</Text>
                             <Text style={[styles.subtitle, { color: Colors.textSecondary }]}>
-                                Start your running journey today 🏃‍♂️
+                                Start your running journey today
                             </Text>
                         </View>
 
                         <View style={styles.form}>
-                            {/* Name Input */}
-                            <View style={styles.inputGroup}>
-                                <Text style={[styles.label, { color: Colors.textSecondary }]}>Full Name</Text>
-                                <View style={[styles.inputContainer, { backgroundColor: Colors.surface, borderColor: Colors.border }]}>
-                                    <Text style={styles.inputIcon}>👤</Text>
-                                    <TextInput
-                                        style={[styles.input, { color: Colors.textPrimary }]}
-                                        value={name}
-                                        onChangeText={setName}
-                                        placeholder="Enter your name"
-                                        placeholderTextColor={Colors.textMuted}
-                                        autoCapitalize="words"
-                                    />
-                                </View>
-                            </View>
+                            <Input
+                                label="Full Name"
+                                icon="person-outline"
+                                value={name}
+                                onChangeText={setName}
+                                placeholder="Enter your name"
+                                autoCapitalize="words"
+                            />
 
-                            {/* Email Input */}
-                            <View style={styles.inputGroup}>
-                                <Text style={[styles.label, { color: Colors.textSecondary }]}>Email Address</Text>
-                                <View style={[
-                                    styles.inputContainer,
-                                    { backgroundColor: Colors.surface, borderColor: Colors.border },
-                                    emailTouched && email.length > 0 && !emailValid && { borderColor: Colors.error },
-                                    emailTouched && emailValid && { borderColor: Colors.success },
-                                ]}>
-                                    <Text style={styles.inputIcon}>📧</Text>
-                                    <TextInput
-                                        style={[styles.input, { color: Colors.textPrimary }]}
-                                        value={email}
-                                        onChangeText={setEmail}
-                                        onBlur={() => setEmailTouched(true)}
-                                        placeholder="your@email.com"
-                                        placeholderTextColor={Colors.textMuted}
-                                        keyboardType="email-address"
-                                        autoCapitalize="none"
-                                        autoCorrect={false}
-                                    />
-                                    {emailTouched && email.length > 0 && (
-                                        <Text style={styles.validationIcon}>
-                                            {emailValid ? '✅' : '❌'}
-                                        </Text>
-                                    )}
-                                </View>
-                                {emailTouched && email.length > 0 && !emailValid && (
-                                    <Text style={[styles.fieldError, { color: Colors.error }]}>Enter a valid email address</Text>
-                                )}
-                            </View>
+                            <Input
+                                label="Email Address"
+                                icon="mail-outline"
+                                value={email}
+                                onChangeText={setEmail}
+                                onBlur={() => setEmailTouched(true)}
+                                placeholder="your@email.com"
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                                error={emailTouched && email.length > 0 && !emailValid ? "Enter a valid email address" : undefined}
+                            />
 
-                            {/* Password Input */}
-                            <View style={styles.inputGroup}>
-                                <Text style={[styles.label, { color: Colors.textSecondary }]}>Password</Text>
-                                <View style={[styles.inputContainer, { backgroundColor: Colors.surface, borderColor: Colors.border }]}>
-                                    <Text style={styles.inputIcon}>🔒</Text>
-                                    <TextInput
-                                        style={[styles.input, { color: Colors.textPrimary }]}
-                                        value={password}
-                                        onChangeText={setPassword}
-                                        placeholder="Minimum 6 characters"
-                                        placeholderTextColor={Colors.textMuted}
-                                        secureTextEntry
-                                    />
-                                </View>
+                            <Input
+                                label="Password"
+                                icon="lock-closed-outline"
+                                value={password}
+                                onChangeText={setPassword}
+                                placeholder="Minimum 6 characters"
+                                secureTextEntry
+                            />
 
-                                {/* Password Strength Meter */}
-                                {password.length > 0 && (
-                                    <View style={styles.strengthContainer}>
-                                        <View style={[styles.strengthBar, { backgroundColor: Colors.surfaceLight }]}>
-                                            <View
-                                                style={[
-                                                    styles.strengthFill,
-                                                    {
-                                                        width: `${passwordStrength.width}%`,
-                                                        backgroundColor: passwordStrength.color,
-                                                    },
-                                                ]}
-                                            />
-                                        </View>
-                                        <Text style={[styles.strengthText, { color: passwordStrength.color }]}>
-                                            {passwordStrength.level}
-                                        </Text>
+                            {/* Password Strength Meter */}
+                            {password.length > 0 && (
+                                <View style={styles.strengthContainer}>
+                                    <View style={[styles.strengthBar, { backgroundColor: Colors.surfaceLight }]}>
+                                        <View
+                                            style={[
+                                                styles.strengthFill,
+                                                {
+                                                    width: `${passwordStrength.width}%`,
+                                                    backgroundColor: passwordStrength.color,
+                                                },
+                                            ]}
+                                        />
                                     </View>
-                                )}
-
-                                {password.length > 0 && password.length < 6 && (
-                                    <Text style={[styles.fieldHint, { color: Colors.textMuted }]}>
-                                        Need {6 - password.length} more character{6 - password.length > 1 ? 's' : ''}
+                                    <Text style={[styles.strengthText, { color: passwordStrength.color }]}>
+                                        {passwordStrength.level}
                                     </Text>
-                                )}
-                            </View>
+                                </View>
+                            )}
+
+                            {password.length > 0 && password.length < 6 && (
+                                <Text style={[styles.fieldHint, { color: Colors.textMuted }]}>
+                                    Need {6 - password.length} more character{6 - password.length > 1 ? 's' : ''}
+                                </Text>
+                            )}
 
                             {error ? (
                                 <View style={[styles.errorContainer, { backgroundColor: Colors.errorGlow, borderColor: Colors.error + '30' }]}>

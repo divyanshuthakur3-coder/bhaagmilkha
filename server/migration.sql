@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS runs (
   id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
   user_id VARCHAR(36) NOT NULL,
+  name VARCHAR(255) DEFAULT NULL,
   started_at TIMESTAMP NOT NULL,
   ended_at TIMESTAMP NOT NULL,
   distance_km FLOAT NOT NULL DEFAULT 0,
@@ -26,7 +27,9 @@ CREATE TABLE IF NOT EXISTS runs (
   calories_burned INT NOT NULL DEFAULT 0,
   route_coordinates JSON DEFAULT NULL,
   notes TEXT,
+  shoe_id VARCHAR(36) DEFAULT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (shoe_id) REFERENCES shoes(id) ON DELETE SET NULL,
   INDEX idx_runs_user (user_id),
   INDEX idx_runs_started (started_at DESC)
 );
@@ -34,7 +37,7 @@ CREATE TABLE IF NOT EXISTS runs (
 CREATE TABLE IF NOT EXISTS goals (
   id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
   user_id VARCHAR(36) NOT NULL,
-  type ENUM('weekly_distance', 'pace_target', 'streak') NOT NULL,
+  type ENUM('weekly_distance', 'pace_target', 'streak', 'weekly_time', 'weekly_run_count') NOT NULL,
   target_value FLOAT NOT NULL,
   deadline TIMESTAMP NULL,
   is_active BOOLEAN DEFAULT TRUE,
@@ -65,3 +68,19 @@ CREATE TABLE IF NOT EXISTS weekly_stats (
   INDEX idx_weekly_user (user_id),
   UNIQUE KEY unique_user_week (user_id, week_start)
 );
+-- Shoes table for gear tracking
+CREATE TABLE IF NOT EXISTS shoes (
+  id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+  user_id VARCHAR(36) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  brand VARCHAR(255),
+  total_km FLOAT DEFAULT 0,
+  max_km FLOAT DEFAULT 800,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_shoes_user (user_id)
+);
+CREATE INDEX idx_runs_user_date ON runs(user_id, started_at DESC);
+CREATE INDEX idx_shoes_user ON shoes(user_id);
+CREATE INDEX idx_goals_user ON goals(user_id);

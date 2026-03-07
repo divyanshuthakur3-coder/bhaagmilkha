@@ -15,6 +15,8 @@ import { useTheme } from '@/context/ThemeContext';
 import { auth } from '@/lib/api';
 import { useUserStore } from '@/store/useUserStore';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Ionicons } from '@expo/vector-icons';
 import { FontSize, Spacing, BorderRadius } from '@/constants/colors';
 
 export default function LoginScreen() {
@@ -65,46 +67,34 @@ export default function LoginScreen() {
                         <View style={styles.header}>
                             <Text style={[styles.title, { color: Colors.textPrimary }]}>Welcome Back</Text>
                             <Text style={[styles.subtitle, { color: Colors.textSecondary }]}>
-                                Sign in to continue tracking your runs 🏃
+                                Sign in to continue tracking your runs
                             </Text>
                         </View>
 
                         <View style={styles.form}>
-                            <View style={styles.inputGroup}>
-                                <Text style={[styles.label, { color: Colors.textSecondary }]}>Email Address</Text>
-                                <View style={[styles.inputContainer, { backgroundColor: Colors.surface, borderColor: Colors.border }]}>
-                                    <Text style={styles.inputIcon}>📧</Text>
-                                    <TextInput
-                                        style={[styles.input, { color: Colors.textPrimary }]}
-                                        value={email}
-                                        onChangeText={setEmail}
-                                        placeholder="your@email.com"
-                                        placeholderTextColor={Colors.textMuted}
-                                        keyboardType="email-address"
-                                        autoCapitalize="none"
-                                        autoCorrect={false}
-                                    />
-                                </View>
-                            </View>
+                            <Input
+                                label="Email Address"
+                                value={email}
+                                onChangeText={setEmail}
+                                placeholder="your@email.com"
+                                icon="mail-outline"
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                            />
 
-                            <View style={styles.inputGroup}>
-                                <Text style={[styles.label, { color: Colors.textSecondary }]}>Password</Text>
-                                <View style={[styles.inputContainer, { backgroundColor: Colors.surface, borderColor: Colors.border }]}>
-                                    <Text style={styles.inputIcon}>🔒</Text>
-                                    <TextInput
-                                        style={[styles.input, { color: Colors.textPrimary }]}
-                                        value={password}
-                                        onChangeText={setPassword}
-                                        placeholder="Your password"
-                                        placeholderTextColor={Colors.textMuted}
-                                        secureTextEntry
-                                    />
-                                </View>
-                            </View>
+                            <Input
+                                label="Password"
+                                value={password}
+                                onChangeText={setPassword}
+                                placeholder="Your password"
+                                icon="lock-closed-outline"
+                                secureTextEntry
+                            />
 
                             {error ? (
                                 <View style={[styles.errorContainer, { backgroundColor: Colors.errorGlow, borderColor: Colors.error + '30' }]}>
-                                    <Text style={styles.errorIcon}>⚠️</Text>
+                                    <Ionicons name="warning" size={16} color={Colors.errorLight} style={styles.errorIcon} />
                                     <Text style={[styles.error, { color: Colors.errorLight }]}>{error}</Text>
                                 </View>
                             ) : null}

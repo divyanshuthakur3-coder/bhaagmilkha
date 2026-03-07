@@ -2,23 +2,52 @@ import React from 'react';
 import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, FontSize, Spacing, BorderRadius } from '@/constants/colors';
+import { Ionicons } from '@expo/vector-icons';
 
 interface StatBadgeProps {
-    icon: string;
-    value: string;
+    icon: keyof typeof Ionicons.glyphMap;
+    value: string | number;
     label: string;
     color?: string;
     style?: ViewStyle;
+    variant?: 'default' | 'featured' | 'horizontal';
 }
 
-export function StatBadge({ icon, value, label, color = Colors.accent, style }: StatBadgeProps) {
+export function StatBadge({ icon, value, label, color = Colors.accent, style, variant = 'default' }: StatBadgeProps) {
+    const isFeatured = variant === 'featured';
+    const isHorizontal = variant === 'horizontal';
+
     return (
-        <View style={[styles.container, style]}>
-            <View style={[styles.iconBg, { backgroundColor: color + '20' }]}>
-                <Text style={styles.icon}>{icon}</Text>
+        <View style={[
+            styles.container,
+            isHorizontal && styles.containerHorizontal,
+            style
+        ]}>
+            <LinearGradient
+                colors={[color + '30', color + '10']}
+                style={[
+                    styles.iconBg,
+                    isFeatured && styles.iconBgFeatured,
+                    isHorizontal && styles.iconBgHorizontal
+                ]}
+            >
+                <Ionicons name={icon} size={isFeatured ? 28 : 22} color={color} />
+            </LinearGradient>
+            <View style={[styles.textContainer, isHorizontal && styles.textContainerHorizontal]}>
+                <Text style={[
+                    styles.value,
+                    { color: Colors.textPrimary },
+                    isFeatured && styles.valueFeatured
+                ]}>
+                    {value}
+                </Text>
+                <Text style={[
+                    styles.label,
+                    isFeatured && styles.labelFeatured
+                ]}>
+                    {label}
+                </Text>
             </View>
-            <Text style={[styles.value, { color }]}>{value}</Text>
-            <Text style={styles.label}>{label}</Text>
         </View>
     );
 }
@@ -26,8 +55,16 @@ export function StatBadge({ icon, value, label, color = Colors.accent, style }: 
 const styles = StyleSheet.create({
     container: {
         alignItems: 'center',
-        gap: Spacing.xs,
+        justifyContent: 'center',
+        paddingVertical: Spacing.sm,
+        paddingHorizontal: Spacing.xs,
         flex: 1,
+    },
+    containerHorizontal: {
+        flexDirection: 'row',
+        justifyContent: 'flex-start',
+        gap: Spacing.md,
+        paddingHorizontal: Spacing.md,
     },
     iconBg: {
         width: 44,
@@ -36,20 +73,41 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: Spacing.xs,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
     },
-    icon: {
-        fontSize: 20,
+    iconBgFeatured: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        marginBottom: Spacing.sm,
+    },
+    iconBgHorizontal: {
+        marginBottom: 0,
+    },
+    textContainer: {
+        alignItems: 'center',
+    },
+    textContainerHorizontal: {
+        alignItems: 'flex-start',
     },
     value: {
-        fontSize: FontSize.xl,
-        fontWeight: '800',
+        fontSize: FontSize.lg,
+        fontWeight: '900',
         letterSpacing: -0.5,
     },
+    valueFeatured: {
+        fontSize: FontSize.xxl,
+    },
     label: {
-        fontSize: FontSize.xs,
+        fontSize: 9,
         color: Colors.textMuted,
-        fontWeight: '500',
+        fontWeight: '800',
         textTransform: 'uppercase',
         letterSpacing: 1,
+        marginTop: 2,
+    },
+    labelFeatured: {
+        fontSize: 11,
     },
 });

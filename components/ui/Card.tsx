@@ -5,7 +5,7 @@ import { BorderRadius, Spacing, Shadows } from '@/constants/colors';
 
 interface CardProps {
     children: React.ReactNode;
-    variant?: 'default' | 'elevated' | 'glass' | 'glow' | 'outlined';
+    variant?: 'default' | 'elevated' | 'glass' | 'glow' | 'outlined' | 'premium';
     glowColor?: string;
     style?: ViewStyle | ViewStyle[];
 }
@@ -24,7 +24,8 @@ export function Card({ children, variant = 'default', glowColor, style }: CardPr
                 return {
                     backgroundColor: Colors.surfaceGlass,
                     borderWidth: 1,
-                    borderColor: Colors.borderLight,
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    ...Shadows.sm,
                 };
             case 'glow':
                 return {
@@ -32,6 +33,13 @@ export function Card({ children, variant = 'default', glowColor, style }: CardPr
                     borderWidth: 1,
                     borderColor: glowColor || Colors.borderAccent,
                     ...Shadows.glow(glowColor || Colors.accent),
+                };
+            case 'premium':
+                return {
+                    backgroundColor: Colors.surface,
+                    borderWidth: 1.5,
+                    borderColor: '#D4A517',
+                    ...Shadows.glow('#D4A517'),
                 };
             case 'outlined':
                 return {

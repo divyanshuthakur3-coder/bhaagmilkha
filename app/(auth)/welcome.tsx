@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Button } from '@/components/ui/Button';
 import { useTheme } from '@/context/ThemeContext';
+import { Ionicons } from '@expo/vector-icons';
 import { FontSize, Spacing, BorderRadius } from '@/constants/colors';
 
 const { width } = Dimensions.get('window');
@@ -111,7 +112,7 @@ export default function WelcomeScreen() {
                                     elevation: 8,
                                 }]}
                             >
-                                <Text style={styles.logoIcon}>🏃‍♂️</Text>
+                                <Ionicons name="walk" size={48} color="#FFFFFF" />
                             </LinearGradient>
                         </Animated.View>
 

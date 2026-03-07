@@ -20,13 +20,24 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ProgressRings } from '@/components/ui/ProgressRings';
 import { CalendarHeatmap } from '@/components/charts/CalendarHeatmap';
+import { Ionicons } from '@expo/vector-icons';
 import { GOAL_TYPES, GoalType } from '@/constants/goalTypes';
-import { formatDistance, formatPace, formatDuration } from '@/lib/formatters';
-import { Colors, FontSize, Spacing, BorderRadius } from '@/constants/colors';
+import { formatDistance, formatPace } from '@/lib/formatters';
+
+const GOAL_TEMPLATES = [
+    { label: '🏃 Consistently', type: 'weekly_run_count', target: 3, description: '3 runs per week' },
+    { label: '🎯 5K Training', type: 'weekly_distance', target: 15, description: '15 km per week' },
+    { label: '🔥 Streak Starter', type: 'streak', target: 7, description: '7 day streak' },
+    { label: '👑 Elite Runner', type: 'weekly_distance', target: 50, description: '50 km per week' },
+];
+import { Colors as ThemeColors, FontSize, Spacing, BorderRadius } from '@/constants/colors';
+import { useTheme } from '@/context/ThemeContext';
 
 export default function GoalsScreen() {
-    const { goals, isLoading, fetchGoals, addGoal } = useGoalStore();
+    const { colors: Colors } = useTheme();
+    const { goals, fetchGoals, addGoal } = useGoalStore();
     const { runs, fetchRuns } = useRunHistoryStore();
     const profile = useUserStore((s) => s.profile);
     const unit = profile?.preferred_unit || 'km';
@@ -38,8 +49,10 @@ export default function GoalsScreen() {
     const goalProgress = useGoalProgress(goals, runs);
 
     useEffect(() => {
-        fetchGoals();
-        fetchRuns();
+        const controller = new AbortController();
+        fetchGoals(controller.signal);
+        fetchRuns(controller.signal);
+        return () => controller.abort();
     }, []);
 
     const onRefresh = async () => {
@@ -56,7 +69,7 @@ export default function GoalsScreen() {
             .filter((r) => r.distance_km >= 5)
             .sort((a, b) => a.avg_pace_min_per_km - b.avg_pace_min_per_km)[0];
 
-        const longestRun = runs.sort((a, b) => b.distance_km - a.distance_km)[0];
+        const longestRun = [...runs].sort((a, b) => b.distance_km - a.distance_km)[0];
 
         const bestPace = runs
             .filter((r) => r.avg_pace_min_per_km > 0)
@@ -71,6 +84,29 @@ export default function GoalsScreen() {
             date: r.started_at,
             distanceKm: r.distance_km,
         }));
+    }, [runs]);
+
+    // Weekly Consistency (Habits)
+    const weeklyConsistency = React.useMemo(() => {
+        const now = new Date();
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - now.getDay());
+        weekStart.setHours(0, 0, 0, 0);
+
+        const daysWithRuns = new Set(
+            runs
+                .filter(r => new Date(r.started_at) >= weekStart)
+                .map(r => new Date(r.started_at).toDateString())
+        );
+
+        return {
+            count: daysWithRuns.size,
+            days: ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((label, i) => {
+                const d = new Date(weekStart);
+                d.setDate(weekStart.getDate() + i);
+                return { label, active: daysWithRuns.has(d.toDateString()), isToday: d.toDateString() === now.toDateString() };
+            })
+        };
     }, [runs]);
 
     const handleAddGoal = async () => {
@@ -89,7 +125,7 @@ export default function GoalsScreen() {
     };
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
+        <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
             <ScrollView
                 style={styles.scroll}
                 contentContainerStyle={styles.scrollContent}
@@ -99,29 +135,101 @@ export default function GoalsScreen() {
                 }
             >
                 <View style={styles.headerRow}>
-                    <Text style={styles.header}>Goals & Progress</Text>
+                    <Text style={[styles.header, { color: Colors.textPrimary }]}>Goals</Text>
                     <Button
-                        title="+ Add Goal"
+                        title="+ Add"
                         onPress={() => setShowAddModal(true)}
                         variant="primary"
                         size="sm"
                     />
                 </View>
 
+                {/* Overall Progress Rings */}
+                {goalProgress.length > 0 && (
+                    <Card variant="glass" style={{ marginBottom: Spacing.xl, padding: Spacing.xl }}>
+                        <Text style={[styles.sectionTitle, { color: Colors.textSecondary, fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 }]}>
+                            Current Progress
+                        </Text>
+                        <ProgressRings
+                            rings={[
+                                {
+                                    progress: goalProgress.find(g => g.goal.type === 'weekly_distance')?.percentage || 0,
+                                    label: 'Dist',
+                                    icon: 'resize',
+                                    colors: [Colors.accent, Colors.accentLight] as [string, string]
+                                },
+                                {
+                                    progress: goalProgress.find(g => g.goal.type === 'weekly_time')?.percentage || 0,
+                                    label: 'Time',
+                                    icon: 'time',
+                                    colors: [Colors.success, Colors.successLight] as [string, string]
+                                },
+                                {
+                                    progress: goalProgress.find(g => g.goal.type === 'weekly_run_count')?.percentage || 0,
+                                    label: 'Runs',
+                                    icon: 'walk',
+                                    colors: [Colors.warning, Colors.warningLight] as [string, string]
+                                }
+                            ].filter(r => r.progress > 0 || r.label === 'Dist').slice(0, 3)}
+                        />
+                    </Card>
+                )}
+
+                {/* Weekly Consistency (Habit Tracker) */}
+                <View style={styles.section}>
+                    <Text style={[styles.sectionTitle, { color: Colors.textPrimary }]}>Weekly Consistency</Text>
+                    <Card variant="glass" style={styles.habitCard}>
+                        <View style={styles.habitDays}>
+                            {weeklyConsistency.days.map((day, i) => (
+                                <View key={i} style={styles.habitDayColumn}>
+                                    <View style={[
+                                        styles.habitDot,
+                                        day.active && { backgroundColor: Colors.success, borderColor: Colors.success },
+                                        day.isToday && !day.active && { borderColor: Colors.accent, borderWidth: 2 }
+                                    ]}>
+                                        {day.active && <Ionicons name="checkmark" size={12} color="white" />}
+                                    </View>
+                                    <Text style={[
+                                        styles.habitDayLabel,
+                                        { color: day.isToday ? Colors.accent : Colors.textMuted },
+                                        day.isToday && { fontWeight: '800' }
+                                    ]}>
+                                        {day.label}
+                                    </Text>
+                                </View>
+                            ))}
+                        </View>
+                        <View style={styles.habitFooter}>
+                            <Text style={[styles.habitFooterText, { color: Colors.textSecondary }]}>
+                                {weeklyConsistency.count} days active this week. {weeklyConsistency.count >= 3 ? 'Great consistency! 🔥' : 'Keep it up!'}
+                            </Text>
+                        </View>
+                    </Card>
+                </View>
+
                 {/* Active Goals */}
                 {goalProgress.length > 0 ? (
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Active Goals</Text>
+                        <Text style={[styles.sectionTitle, { color: Colors.textPrimary }]}>Active Goals</Text>
                         {goalProgress.map((gp) => (
-                            <Card key={gp.goal.id} style={styles.goalCard}>
+                            <Card key={gp.goal.id} variant="glass" style={styles.goalCard}>
                                 <View style={styles.goalHeader}>
-                                    <Text style={styles.goalIcon}>
-                                        {GOAL_TYPES.find((t) => t.type === gp.goal.type)?.icon || '🎯'}
-                                    </Text>
-                                    <Text style={styles.goalName}>
-                                        {GOAL_TYPES.find((t) => t.type === gp.goal.type)?.label || gp.goal.type}
-                                    </Text>
-                                    {gp.isCompleted && <Text style={styles.completedBadge}>✅</Text>}
+                                    <View style={[styles.goalIconBg, { backgroundColor: Colors.accentGlow }]}>
+                                        <Ionicons
+                                            name={GOAL_TYPES.find((t) => t.type === gp.goal.type)?.icon || 'flag'}
+                                            size={20}
+                                            color={Colors.accent}
+                                        />
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={[styles.goalName, { color: Colors.textPrimary }]}>
+                                            {GOAL_TYPES.find((t) => t.type === gp.goal.type)?.label || gp.goal.type}
+                                        </Text>
+                                        <Text style={[styles.goalTargetText, { color: Colors.textMuted }]}>
+                                            Target: {gp.goal.target_value} {GOAL_TYPES.find((t) => t.type === gp.goal.type)?.unit}
+                                        </Text>
+                                    </View>
+                                    {gp.isCompleted && <Ionicons name="checkmark-circle" size={24} color={Colors.success} />}
                                 </View>
                                 <ProgressBar
                                     progress={gp.percentage}
@@ -133,7 +241,7 @@ export default function GoalsScreen() {
                     </View>
                 ) : (
                     <EmptyState
-                        icon="🎯"
+                        icon="flag"
                         title="No active goals"
                         message="Set a running goal to stay motivated and track your progress."
                         actionLabel="Set a Goal"
@@ -144,29 +252,24 @@ export default function GoalsScreen() {
                 {/* Personal Records */}
                 {personalRecords && (
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Personal Records 🏆</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: Spacing.md }}>
+                            <Ionicons name="trophy" size={24} color={Colors.warning} />
+                            <Text style={[styles.sectionTitle, { marginBottom: 0, color: Colors.textPrimary }]}>Records</Text>
+                        </View>
                         <View style={styles.recordsGrid}>
                             {personalRecords.fastest5k && (
-                                <Card style={styles.recordCard}>
-                                    <Text style={styles.recordLabel}>Fastest 5K</Text>
-                                    <Text style={styles.recordValue}>
+                                <Card variant="glow" glowColor={Colors.accent} style={styles.recordCard}>
+                                    <Text style={[styles.recordLabel, { color: Colors.textSecondary }]}>Fastest 5K</Text>
+                                    <Text style={[styles.recordValue, { color: Colors.textPrimary }]}>
                                         {formatPace(personalRecords.fastest5k.avg_pace_min_per_km, unit)}
                                     </Text>
                                 </Card>
                             )}
                             {personalRecords.longestRun && (
-                                <Card style={styles.recordCard}>
-                                    <Text style={styles.recordLabel}>Longest Run</Text>
-                                    <Text style={styles.recordValue}>
+                                <Card variant="glow" glowColor={Colors.warning} style={styles.recordCard}>
+                                    <Text style={[styles.recordLabel, { color: Colors.textSecondary }]}>Longest Run</Text>
+                                    <Text style={[styles.recordValue, { color: Colors.textPrimary }]}>
                                         {formatDistance(personalRecords.longestRun.distance_km, unit)}
-                                    </Text>
-                                </Card>
-                            )}
-                            {personalRecords.bestPace && (
-                                <Card style={styles.recordCard}>
-                                    <Text style={styles.recordLabel}>Best Pace</Text>
-                                    <Text style={styles.recordValue}>
-                                        {formatPace(personalRecords.bestPace.avg_pace_min_per_km, unit)}
                                     </Text>
                                 </Card>
                             )}
@@ -176,8 +279,8 @@ export default function GoalsScreen() {
 
                 {/* Calendar Heatmap */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Activity Calendar</Text>
-                    <Card>
+                    <Text style={[styles.sectionTitle, { color: Colors.textPrimary }]}>Activity Map</Text>
+                    <Card variant="glass" style={{ padding: Spacing.md }}>
                         <CalendarHeatmap runDates={heatmapData} />
                     </Card>
                 </View>
@@ -186,25 +289,53 @@ export default function GoalsScreen() {
             {/* Add Goal Modal */}
             <Modal visible={showAddModal} transparent animationType="slide">
                 <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Add New Goal</Text>
+                    <View style={[styles.modalContent, { backgroundColor: Colors.surface }]}>
+                        <View style={styles.modalHeader}>
+                            <Text style={[styles.modalTitle, { color: Colors.textPrimary, marginBottom: 0 }]}>New Goal</Text>
+                            <TouchableOpacity onPress={() => setShowAddModal(false)}>
+                                <Ionicons name="close" size={24} color={Colors.textMuted} />
+                            </TouchableOpacity>
+                        </View>
 
-                        <Text style={styles.modalLabel}>Goal Type</Text>
+                        <Text style={[styles.modalLabel, { color: Colors.textSecondary, marginTop: Spacing.md }]}>Quick Templates</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.templateScroll}>
+                            {GOAL_TEMPLATES.map((template, idx) => (
+                                <TouchableOpacity
+                                    key={idx}
+                                    style={[styles.templateButton, { backgroundColor: Colors.surfaceLight, borderColor: Colors.border }]}
+                                    onPress={() => {
+                                        setSelectedType(template.type as GoalType);
+                                        setTargetValue(String(template.target));
+                                    }}
+                                >
+                                    <Text style={[styles.templateLabel, { color: Colors.textPrimary }]}>{template.label}</Text>
+                                    <Text style={[styles.templateDesc, { color: Colors.textMuted }]}>{template.description}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+
+                        <Text style={[styles.modalLabel, { color: Colors.textSecondary, marginTop: Spacing.lg }]}>Goal Type</Text>
                         <View style={styles.typeButtons}>
                             {GOAL_TYPES.map((type) => (
                                 <TouchableOpacity
                                     key={type.type}
                                     style={[
                                         styles.typeButton,
-                                        selectedType === type.type && styles.typeButtonActive,
+                                        { borderColor: Colors.border },
+                                        selectedType === type.type && { borderColor: Colors.accent, backgroundColor: Colors.accentGlow },
                                     ]}
                                     onPress={() => setSelectedType(type.type)}
                                 >
-                                    <Text style={styles.typeIcon}>{type.icon}</Text>
+                                    <Ionicons
+                                        name={type.icon as any}
+                                        size={24}
+                                        color={selectedType === type.type ? Colors.accent : Colors.textMuted}
+                                    />
                                     <Text
                                         style={[
                                             styles.typeLabel,
-                                            selectedType === type.type && styles.typeLabelActive,
+                                            { color: Colors.textSecondary },
+                                            selectedType === type.type && { color: Colors.accent },
                                         ]}
                                     >
                                         {type.label}
@@ -213,11 +344,11 @@ export default function GoalsScreen() {
                             ))}
                         </View>
 
-                        <Text style={styles.modalLabel}>
+                        <Text style={[styles.modalLabel, { color: Colors.textSecondary }]}>
                             Target ({GOAL_TYPES.find((t) => t.type === selectedType)?.unit})
                         </Text>
                         <TextInput
-                            style={styles.modalInput}
+                            style={[styles.modalInput, { backgroundColor: Colors.surfaceLight, borderColor: Colors.border, color: Colors.textPrimary }]}
                             value={targetValue}
                             onChangeText={setTargetValue}
                             placeholder="Enter target value"
@@ -248,7 +379,6 @@ export default function GoalsScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.background,
     },
     scroll: {
         flex: 1,
@@ -265,67 +395,67 @@ const styles = StyleSheet.create({
     },
     header: {
         fontSize: FontSize.xxxl,
-        fontWeight: '800',
-        color: Colors.textPrimary,
+        fontWeight: '900',
+        letterSpacing: -1,
     },
     section: {
         marginBottom: Spacing.xl,
     },
     sectionTitle: {
         fontSize: FontSize.lg,
-        fontWeight: '600',
-        color: Colors.textPrimary,
+        fontWeight: '700',
         marginBottom: Spacing.md,
     },
     goalCard: {
         marginBottom: Spacing.sm,
+        padding: Spacing.lg,
     },
     goalHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: Spacing.sm,
-        marginBottom: Spacing.md,
+        gap: Spacing.md,
+        marginBottom: Spacing.lg,
     },
-    goalIcon: {
-        fontSize: 20,
+    goalIconBg: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     goalName: {
         fontSize: FontSize.md,
-        fontWeight: '600',
-        color: Colors.textPrimary,
-        flex: 1,
+        fontWeight: '700',
     },
-    completedBadge: {
-        fontSize: 16,
+    goalTargetText: {
+        fontSize: FontSize.xs,
+        marginTop: 2,
     },
     recordsGrid: {
         flexDirection: 'row',
-        flexWrap: 'wrap',
         gap: Spacing.sm,
     },
     recordCard: {
         flex: 1,
-        minWidth: '45%',
         alignItems: 'center',
-        gap: Spacing.xs,
+        padding: Spacing.lg,
     },
     recordLabel: {
-        fontSize: FontSize.sm,
-        color: Colors.textSecondary,
+        fontSize: FontSize.xs,
+        fontWeight: '600',
+        marginBottom: 4,
     },
     recordValue: {
         fontSize: FontSize.xl,
-        fontWeight: '700',
-        color: Colors.accent,
+        fontWeight: '900',
+        letterSpacing: -1,
     },
-    // Modal styles
     modalOverlay: {
         flex: 1,
-        backgroundColor: Colors.overlay,
+        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'flex-end',
     },
     modalContent: {
-        backgroundColor: Colors.surface,
         borderTopLeftRadius: BorderRadius.xl,
         borderTopRightRadius: BorderRadius.xl,
         padding: Spacing.xxl,
@@ -333,58 +463,104 @@ const styles = StyleSheet.create({
     },
     modalTitle: {
         fontSize: FontSize.xxl,
-        fontWeight: '700',
-        color: Colors.textPrimary,
+        fontWeight: '800',
         marginBottom: Spacing.xl,
     },
     modalLabel: {
         fontSize: FontSize.sm,
-        color: Colors.textSecondary,
-        fontWeight: '500',
+        fontWeight: '700',
         marginBottom: Spacing.sm,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: Spacing.md,
+    },
+    templateScroll: {
+        flexGrow: 0,
+        marginBottom: Spacing.md,
+    },
+    templateButton: {
+        padding: Spacing.md,
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+        marginRight: Spacing.sm,
+        minWidth: 120,
+    },
+    templateLabel: {
+        fontSize: 12,
+        fontWeight: '800',
+    },
+    templateDesc: {
+        fontSize: 10,
+        marginTop: 2,
     },
     typeButtons: {
         flexDirection: 'row',
         gap: Spacing.sm,
-        marginBottom: Spacing.lg,
+        marginBottom: Spacing.xl,
     },
     typeButton: {
         flex: 1,
         alignItems: 'center',
         padding: Spacing.md,
-        borderRadius: BorderRadius.md,
+        borderRadius: BorderRadius.lg,
         borderWidth: 1,
-        borderColor: Colors.border,
         gap: Spacing.xs,
     },
-    typeButtonActive: {
-        borderColor: Colors.accent,
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    },
-    typeIcon: {
-        fontSize: 24,
-    },
     typeLabel: {
-        fontSize: FontSize.xs,
-        color: Colors.textSecondary,
+        fontSize: 10,
+        fontWeight: '600',
         textAlign: 'center',
     },
-    typeLabelActive: {
-        color: Colors.accent,
-    },
     modalInput: {
-        backgroundColor: Colors.background,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        borderRadius: BorderRadius.md,
+        borderRadius: BorderRadius.lg,
         padding: Spacing.lg,
-        fontSize: FontSize.md,
-        color: Colors.textPrimary,
+        fontSize: FontSize.lg,
+        fontWeight: '600',
+        borderWidth: 1,
         marginBottom: Spacing.xl,
     },
     modalActions: {
         flexDirection: 'row',
         justifyContent: 'flex-end',
         gap: Spacing.md,
+    },
+    habitCard: {
+        padding: Spacing.lg,
+    },
+    habitDays: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: Spacing.md,
+    },
+    habitDayColumn: {
+        alignItems: 'center',
+        gap: Spacing.xs,
+    },
+    habitDot: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    habitDayLabel: {
+        fontSize: 10,
+        fontWeight: '700',
+    },
+    habitFooter: {
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(0,0,0,0.05)',
+        paddingTop: Spacing.sm,
+        marginTop: Spacing.xs,
+    },
+    habitFooterText: {
+        fontSize: FontSize.xs,
+        textAlign: 'center',
+        fontWeight: '500',
     },
 });

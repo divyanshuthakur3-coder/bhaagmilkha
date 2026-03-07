@@ -1,6 +1,6 @@
 # 🏃 RunTracker
 
-A GPS-powered personal running tracker built with **React Native**, **Expo**, and **Supabase**. Record runs via live GPS, track performance over time, set goals, earn achievements, and view rich analytics.
+A GPS-powered personal running tracker built with **React Native**, **Expo**, and a custom backend hosted on **Hostinger**. Record runs via live GPS, track performance over time, set goals, earn achievements, and view rich analytics.
 
 ---
 
@@ -10,19 +10,25 @@ A GPS-powered personal running tracker built with **React Native**, **Expo**, an
 |---------|-------------|
 | 📍 **Live GPS Tracking** | Real-time route drawing on map with background location support |
 | ⏸ **Auto-Pause** | Automatically pauses when you stop moving (< 0.5 m/s for 5s) |
-| 📊 **Analytics** | Weekly distance bar chart, pace trend line, lifetime stats |
+| 📊 **Analytics** | Weekly distance bar chart, pace trend line, lifetime stats, and performance score |
 | 🎯 **Goals System** | Weekly distance, pace targets, streak goals with progress bars |
 | 🏆 **Achievements** | 10 badges (First Run, 5K Finisher, Speed Demon, Century Club, etc.) |
 | 📅 **Calendar Heatmap** | Monthly view showing run days with distance-based color intensity |
 | 🔥 **Streak Counter** | Tracks consecutive run days on the dashboard |
 | 📋 **Run History** | Scrollable list with map thumbnails, tap for full detail view |
-| 🔐 **Auth** | Email/password signup, login, forgot password via Supabase Auth |
-| 📶 **Offline Support** | Runs save to MMKV queue when offline, sync when back online |
+| 🔐 **Auth** | Email/password signup, login, profile management via custom API |
+| 📶 **Offline Support** | Runs save to queue when offline, sync when back online |
 | 🔊 **Audio Cues** | Km milestone announcements using expo-av |
-| 📳 **Haptic Feedback** | Tactile feedback on run start, pause, stop |
-| 🌙 **Dark Mode First** | #0F0F0F background with electric blue (#3B82F6) accent |
-| 📐 **Unit Conversion** | Supports km and miles throughout the entire app |
-| 🔥 **Calories** | MET-based formula: `MET × weight_kg × duration_hours` |
+| 🛡 **Reliability** | Jest unit tests + Granular Error Boundaries to prevent app-wide crashes |
+| ⌚ **Ghost Runner** | Compete against your 5K/10K Personal Best with real-time variance |
+| 💹 **Fitness Ratio** | ACWR (Acute:Chronic Workload Ratio) trend chart to prevent injury |
+| 👟 **Gear Retirement** | Track shoe mileage and retire shoes to keep your list clean |
+| ⚡ **Performance** | Persistent Zustand stores for instant boot and offline data access |
+| 📤 **Stats Sharing** | One-tap run stat sharing with a beautiful, high-impact message |
+| 🔋 **Low GPS Drift** | Drift-corrected timer and distance filtering for pro-level accuracy |
+| 🗺 **Route Naming** | Personalize your routes (e.g., "Morning Lake Loop") during save flow |
+| 💾 **Compressed Logs** | Google Polyline encoding for 80% smaller GPS storage footprints |
+| 🚀 **API v1.0** | Versioned API routing and automated weekly stats harvesting |
 
 ---
 
@@ -30,18 +36,19 @@ A GPS-powered personal running tracker built with **React Native**, **Expo**, an
 
 | Layer | Technology |
 |-------|------------|
-| Framework | React Native + Expo SDK 55 |
+| Framework | React Native + Expo SDK 53 |
 | Routing | Expo Router (file-based) |
 | Styling | NativeWind (Tailwind for RN) + StyleSheet |
-| State | Zustand (4 stores) |
-| Backend | Supabase (PostgreSQL + Auth + RLS) |
-| Maps | react-native-maps |
+| State | Zustand (4 stores) + Persistence (AsyncStorage) |
+| Backend | Custom Node.js/MySQL API (Hostinger) |
+| Maps | react-native-maps / maplibre |
 | Location | expo-location + expo-task-manager |
 | Charts | victory-native v36.x |
-| Storage | react-native-mmkv (offline queue) |
+| Storage | MMKV (Zustand) / SecureStore (Tokens) |
+| GPS Filter | Kalman Smoothing + Speed Outlier Rejection |
 | Auth Tokens | expo-secure-store (encrypted) |
-| Audio | expo-av |
-| Haptics | expo-haptics |
+| Testing | Jest + ts-jest (Unit tests for core logic) |
+| Resilience | Error Boundaries + AbortController cancellation |
 
 ---
 
@@ -98,10 +105,14 @@ runtracker/
 │   └── goalTypes.ts             # Goal type metadata
 ├── supabase/
 │   └── migration.sql            # Full DB schema + RLS policies
+├── tests/
+│   └── calculations.test.ts      # Unit tests for pace/calories/load
+├── jest.config.js                # Jest testing configuration
 ├── app.json                     # Expo config + permissions + plugins
 ├── babel.config.js              # NativeWind + Reanimated plugins
 ├── tailwind.config.js           # NativeWind theme config
-└── tsconfig.json                # TypeScript config with path aliases
+├── tsconfig.json                # TypeScript config with path aliases
+└── package.json                 # Project dependencies + test scripts
 ```
 
 ---
@@ -112,30 +123,26 @@ runtracker/
 
 - **Node.js** v18+ installed
 - **Expo CLI**: comes with `npx expo`
-- A **Supabase** project ([supabase.com](https://supabase.com))
-- For GPS testing: a **physical device** with Expo dev build
+- A custom API backend (Node.js/MySQL recommended)
 
-### 1. Set Up Supabase
+### 1. Set Up Environment
 
-1. Create a new project at [supabase.com](https://supabase.com)
-2. Go to **SQL Editor** and run the contents of [`supabase/migration.sql`](supabase/migration.sql)
-3. This creates all 5 tables with indexes, RLS policies, and realtime
+Create a `.env` file in the root directory:
 
-### 2. Add Your Credentials
-
-Open `lib/supabase.ts` and replace the placeholders:
-
-```typescript
-const SUPABASE_URL = 'https://your-project.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOi...your-anon-key';
+```text
+EXPO_PUBLIC_API_BASE_URL=https://your-api-url.com
 ```
 
-You can find these in your Supabase dashboard under **Settings → API**.
-
-### 3. Install Dependencies
+### 2. Install Dependencies
 
 ```bash
-npm install --legacy-peer-deps
+npm install
+```
+
+### 3. Run the App
+
+```bash
+npx expo start
 ```
 
 ### 4. Run the App
@@ -163,9 +170,52 @@ npx expo run:android
 npx expo run:ios
 ```
 
-### 6. Optional: Audio Milestone Cue
+### 6. Testing (Core Logic)
+
+The project includes a **Jest** suite to ensure mathematical accuracy of pace, calorie, and TRIMP (Load) calculations.
+
+```bash
+# Run all unit tests
+npm test
+```
+
+### 7. Optional: Audio Milestone Cue
 
 Place a short MP3 at `assets/milestone.mp3` for km milestone audio alerts. If missing, the app will silently skip audio cues.
+
+---
+
+## 🏆 Development Roadmap & Milestones
+
+This project was built over 7 intensive phases, evolving from a basic map to a production-hardened fitness AI.
+
+| Phase | Milestone | Key Deliverables |
+|---|---|---|
+| **1** | **GPS Foundation** | Background tracking, Douglas-Peucker route simplification, Live Maps |
+| **2** | **Rich Analytics** | Weekly Charts, Pace Trends, Calendar Heatmaps, Elevation Tracking |
+| **3** | **Security First** | Custom JWT Refresh logic, Password Reset, SecureStore integration |
+| **4** | **Motivation Engine** | Goals (Distance/Streak), PR Detection, Milestone Audio Cues |
+| **5** | **Performance Ops** | Reanimated Worklets for route math, Haptics, Shoe Life alerts |
+| **6** | **Stability & WOW** | Granular Error Boundaries, PR Animations, Codebase Audit |
+| **7** | **Intelligent Assistance** | AI Ghost Pacing (Best 5K/10K), ACWR (CTL/ATL) Fitness Trends |
+| **8** | **Android Hardening** | Foreground Services, MMKV Migration, Kalman GPS Smoothing, Static Maps |
+| **9** | **Motivation & UX** | Goal Templates, 10+ New Achievements, Route Naming, Polyline Compression |
+
+---
+
+## 🛡 Security & Hardening (Final Audit)
+
+- **JWT Resilience**: Custom interceptors handle token expiration silently. If a token expires *during* a 2-hour run, the app refreshes in the background without interrupting the session.
+- **Persistent Tracking (v1.8)**: Implemented **Android Foreground Services** via `expo-location` and `expo-task-manager` to ensure tracking persists under aggressive OS power management.
+- **Fail-Safe Mapping**: Each map instance is wrapped in a dedicated Error Boundary.
+- **Speed-Outlier Rejection**: GPS jumps implying >43km/h are automatically rejected to prevent distance inflation.
+- **MMKV Persistence**: Migrated Zustand to **MMKV** for ~5x faster state loading and near-zero latency persistence.
+- **GPS Smoothing**: Integrated a **1D Kalman Filter** to reduce polyline noise and jitter in the live GPS stream.
+| 211: - **Static Map Thumbs**: Replaced live maps in history lists with static previews, reducing memory usage and eliminating scroll jank.
+| 212: - **Polyline Compression (v1.9)**: GPS coordinates are now encoded using the **Google Polyline algorithm**, drastically reducing database payload sizes and API latency.
+| 213: - **One-Tap Save Experience**: Redesigned the post-run summary to prioritize a "SAVE RUN" action, reducing the time from finishing a run to viewing history.
+| 214: - **Automated Analytics (v1.9)**: Backend now asynchronously aggregates `weekly_stats` on every run save, enabling instant distance/pace trend rendering without expensive on-the-fly SQL joins.
+| 215: - **API Versioning**: Enforced `/v1` prefix across all endpoints for production stability and easy future migrations.
 
 ---
 
@@ -200,7 +250,7 @@ achievements  → id, user_id, badge_type, earned_at (UNIQUE on user_id + badge_
 weekly_stats  → id, user_id, week_start, total_distance_km, total_runs, total_duration_seconds, best_pace
 ```
 
-**RLS**: All tables enforce `auth.uid() = user_id` — users can only access their own data.
+**Authorization**: All API endpoints require a valid JWT (stored in `SecureStore`). The backend ensures users can only access data where `user_id` matches their session.
 
 ---
 
@@ -218,6 +268,15 @@ weekly_stats  → id, user_id, week_start, total_distance_km, total_runs, total_
 | ⚡ Speed Demon | Pace < 5 min/km |
 | 📅 Consistent | 7-day streak |
 | 💯 Century Club | 100 km total |
+| 🐦 Early Bird | Run completed before 7 AM |
+| 🦉 Night Owl | Run completed after 9 PM |
+| 🏔 Elite Climber | Gain >100m elevation in one run |
+| 🤴 Sprint King | Maintain pace < 4:15 min/km |
+| 🌍 Earthbound | 1,000 km total lifetime distance |
+| 🏛 Elite Centurion | 100 runs completed |
+| 🛡 Persistence | 30 runs completed |
+| ⚔️ Weekend Warrior | Run on both Saturday and Sunday |
+| 🌀 Marathoner | Single run ≥ 42.2 km |
 
 Achievements are checked automatically after every run save.
 
@@ -228,15 +287,21 @@ Achievements are checked automatically after every run save.
 ### GPS Tracking Pipeline
 1. `expo-location` watches position every 3s (foreground)
 2. `expo-task-manager` keeps GPS alive in background
-3. `useLocation` hook filters by auto-pause (speed < 0.5 m/s)
-4. `useActiveRunStore` accumulates coordinates + calculates distance via Haversine
-5. On stop → `douglasPeucker()` simplifies route (~80% reduction)
-6. Save to Supabase (or `offlineQueue` if offline)
+3. **Accuracy Filter**: Points with `accuracy > 20m` are discarded to prevent "jitter" distance
+4. `useLocation` hook filters by auto-pause (speed < 0.5 m/s)
+5. `useActiveRunStore` accumulates coordinates + captures **Altitude** data
+6. On stop → `douglasPeucker()` simplifies route (~80% reduction)
+7. Save to API (or `offlineQueue` if offline)
 
-### Offline Strategy
-- `lib/offlineQueue.ts` uses MMKV to persist pending Supabase operations
-- Operations are retried on reconnection (max 5 retries)
-- Run data is added to local store immediately for instant UI feedback
+### Reliability & Resilience
+- **Granular Error Boundaries**: Wrap the `LiveRunMap` and history `RunMap` components. A crash in the map rendering engine will no longer kill the whole app or stop a run in progress.
+- **Request Cancellation**: All API calls from `useEffect` (History, Analytics, Profile) use `AbortController` to cancel pending requests when navigating away, preventing memory leaks and state updates on unmounted components.
+
+### Persistence Strategy
+- **Zustand Persistence**: `useRunHistoryStore` and `useUserStore` are persisted via `AsyncStorage`. This enables:
+  - **Instant-On**: Previous runs are visible immediately on boot while the network fetch happens in the background.
+  - **Offline Resilience**: User can view their profile and history even without an active internet connection.
+- **Offline Queue**: `lib/offlineQueue.ts` handles write-operations (saving runs, updating notes) when the server is unreachable.
 
 ### Timer Accuracy
 - `useRunTimer` uses `useRef` for interval ID (no re-render loops)

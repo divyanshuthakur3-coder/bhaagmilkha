@@ -10,7 +10,19 @@ import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { Colors } from '@/constants/colors';
 import { StatusBar } from 'expo-status-bar';
 import ExpoConstants from 'expo-constants';
-import { Alert, Linking } from 'react-native';
+import { Alert, Linking, Platform } from 'react-native';
+import * as Location from 'expo-location';
+import * as Notifications from 'expo-notifications';
+
+Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+    }),
+});
 
 const APP_VERSION = ExpoConstants.expoConfig?.version || '1.0.0';
 
@@ -35,7 +47,32 @@ function InnerLayout() {
     useEffect(() => {
         checkAppStatus();
         checkAuth();
+        requestNotificationPermissions();
+        if (Platform.OS === 'ios') {
+            checkBackgroundLocation();
+        }
     }, []);
+
+    const requestNotificationPermissions = async () => {
+        const { status } = await Notifications.requestPermissionsAsync();
+        if (status !== 'granted') {
+            console.warn('Notification permissions not granted');
+        }
+    };
+
+    const checkBackgroundLocation = async () => {
+        const { status } = await Location.getBackgroundPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert(
+                'Background Location Required',
+                'RunTracker needs "Always" location access to track your runs while the screen is off. Please update this in settings.',
+                [
+                    { text: 'Later', style: 'cancel' },
+                    { text: 'Open Settings', onPress: () => Linking.openSettings() }
+                ]
+            );
+        }
+    };
 
     const checkAppStatus = async () => {
         try {

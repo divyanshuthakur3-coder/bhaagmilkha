@@ -1,10 +1,11 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Animated, StyleSheet, ViewStyle } from 'react-native';
-import { Colors, BorderRadius } from '@/constants/colors';
+import { View, Animated, StyleSheet, ViewStyle, Easing } from 'react-native';
+import { BorderRadius, Spacing } from '@/constants/colors';
+import { useTheme } from '@/context/ThemeContext';
 
 interface LoadingSkeletonProps {
     width?: number | string;
-    height?: number;
+    height?: number | string;
     borderRadius?: number;
     style?: ViewStyle;
 }
@@ -15,19 +16,22 @@ export function LoadingSkeleton({
     borderRadius = BorderRadius.sm,
     style,
 }: LoadingSkeletonProps) {
-    const shimmerAnim = useRef(new Animated.Value(0)).current;
+    const { colors: Colors } = useTheme();
+    const pulseAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
         const animation = Animated.loop(
             Animated.sequence([
-                Animated.timing(shimmerAnim, {
+                Animated.timing(pulseAnim, {
                     toValue: 1,
-                    duration: 1000,
+                    duration: 1200,
+                    easing: Easing.bezier(0.4, 0, 0.6, 1),
                     useNativeDriver: true,
                 }),
-                Animated.timing(shimmerAnim, {
+                Animated.timing(pulseAnim, {
                     toValue: 0,
-                    duration: 1000,
+                    duration: 1200,
+                    easing: Easing.bezier(0.4, 0, 0.6, 1),
                     useNativeDriver: true,
                 }),
             ])
@@ -36,9 +40,14 @@ export function LoadingSkeleton({
         return () => animation.stop();
     }, []);
 
-    const opacity = shimmerAnim.interpolate({
+    const opacity = pulseAnim.interpolate({
         inputRange: [0, 1],
-        outputRange: [0.3, 0.7],
+        outputRange: [0.3, 0.6],
+    });
+
+    const scale = pulseAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 1.02],
     });
 
     return (
@@ -46,10 +55,11 @@ export function LoadingSkeleton({
             style={[
                 {
                     width: width as any,
-                    height,
+                    height: height as any,
                     borderRadius,
                     backgroundColor: Colors.surfaceLight,
                     opacity,
+                    transform: [{ scale }],
                 },
                 style,
             ]}

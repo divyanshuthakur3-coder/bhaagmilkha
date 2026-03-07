@@ -1,10 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { FontSize, Spacing } from '@/constants/colors';
+import { useTheme } from '@/context/ThemeContext';
 import { Button } from './Button';
-import { Colors, FontSize, Spacing } from '@/constants/colors';
+import { AnimatedIllustration } from './AnimatedIllustration';
+import { Ionicons } from '@expo/vector-icons';
 
 interface EmptyStateProps {
-    icon: string;
+    icon: keyof typeof Ionicons.glyphMap;
     title: string;
     message: string;
     actionLabel?: string;
@@ -26,14 +29,15 @@ export function EmptyState({
     actionLabel,
     onAction,
 }: EmptyStateProps) {
+    const { colors: Colors } = useTheme();
     const quote = motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)];
 
     return (
         <View style={styles.container}>
-            <Text style={styles.icon}>{icon}</Text>
-            <Text style={styles.title}>{title}</Text>
-            <Text style={styles.message}>{message}</Text>
-            <Text style={styles.quote}>"{quote}"</Text>
+            <AnimatedIllustration icon={icon as any} color={Colors.accent} size={48} />
+            <Text style={[styles.title, { color: Colors.textPrimary }]}>{title}</Text>
+            <Text style={[styles.message, { color: Colors.textSecondary }]}>{message}</Text>
+            <Text style={[styles.quote, { color: Colors.textMuted }]}>"{quote}"</Text>
             {actionLabel && onAction && (
                 <Button
                     title={actionLabel}
@@ -53,27 +57,22 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         padding: Spacing.xxxl,
     },
-    icon: {
-        fontSize: 64,
-        marginBottom: Spacing.lg,
-    },
     title: {
         fontSize: FontSize.xxl,
-        fontWeight: '700',
-        color: Colors.textPrimary,
+        fontWeight: '800',
+        letterSpacing: -0.5,
         textAlign: 'center',
-        marginBottom: Spacing.sm,
+        marginBottom: Spacing.md,
     },
     message: {
         fontSize: FontSize.md,
-        color: Colors.textSecondary,
+        fontWeight: '500',
         textAlign: 'center',
         marginBottom: Spacing.xl,
-        lineHeight: 22,
+        lineHeight: 24,
     },
     quote: {
         fontSize: FontSize.sm,
-        color: Colors.textMuted,
         textAlign: 'center',
         fontStyle: 'italic',
         marginBottom: Spacing.xxl,
@@ -81,5 +80,6 @@ const styles = StyleSheet.create({
     },
     button: {
         minWidth: 160,
+        borderRadius: 30, // Pill button look
     },
 });

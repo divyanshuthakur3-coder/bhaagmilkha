@@ -19,7 +19,13 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "RunTracker needs your location to track your running route in the background.",
         "NSLocationWhenInUseUsageDescription": "RunTracker needs your location to show your position on the map.",
         "NSLocationAlwaysUsageDescription": "RunTracker needs background location to track your runs even when the app is in the background.",
-        "UIBackgroundModes": ["location", "audio"]
+        "UIBackgroundModes": [
+          "location",
+          "audio",
+          "location",
+          "audio"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -31,11 +37,13 @@
       },
       "package": "com.runtracker.app",
       "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION",
-        "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.VIBRATE",
+        "android.permission.INTERNET"
       ]
     },
     "web": {
@@ -48,16 +56,39 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow RunTracker to track your running route in the background.",
           "isAndroidBackgroundLocationEnabled": true,
-          "isAndroidForegroundServiceEnabled": true
+          "isAndroidForegroundServiceEnabled": true,
+          "foregroundService": {
+            "notificationTitle": "RunTracker is Active",
+            "notificationBody": "Tracking your run in the background...",
+            "notificationColor": "#3B82F6"
+          }
         }
       ],
+      "./plugins/withAndroidXCoreFix",
       "expo-secure-store",
       [
         "expo-sensors",
         {
           "motionPermission": "Allow RunTracker to access your motion data for step counting."
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0",
+            "ndkVersion": "26.1.10909125"
+          }
+        }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6c378929-62a5-441b-b5dd-debdfba385eb"
+      }
+    }
   }
 }

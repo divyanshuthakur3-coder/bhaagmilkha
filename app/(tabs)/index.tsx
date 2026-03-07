@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
     View,
     Text,
@@ -7,6 +7,8 @@ import {
     StyleSheet,
     RefreshControl,
     Alert,
+    Animated,
+    Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,7 +22,11 @@ import { Card } from '@/components/ui/Card';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonGroup } from '@/components/ui/LoadingSkeleton';
-import { getGreeting, formatDistance, formatPace, formatDuration, formatDate } from '@/lib/formatters';
+import { getGreeting, formatDistance, formatPace, formatDuration, formatDate, calculateRunScore } from '@/lib/formatters';
+import { useLocation } from '@/hooks/useLocation';
+import { Ionicons } from '@expo/vector-icons';
+import * as Notifications from 'expo-notifications';
+import { Pedometer } from 'expo-sensors';
 import { FontSize, Spacing, BorderRadius, Shadows } from '@/constants/colors';
 
 export default function HomeScreen() {
@@ -31,12 +37,41 @@ export default function HomeScreen() {
     const { runs, isLoading: runsLoading, fetchRuns } = useRunHistoryStore();
     const { goals, fetchGoals } = useGoalStore();
     const [refreshing, setRefreshing] = React.useState(false);
+    const { requestPermissions, hasPermission } = useLocation();
 
     const unit = profile?.preferred_unit || 'km';
+
+    const fabPulse = useRef(new Animated.Value(1)).current;
 
     useEffect(() => {
         fetchRuns();
         fetchGoals();
+        requestPermissions(); // Location
+
+        // Request Activity & Notifications
+        (async () => {
+            try {
+                const { status: notifStatus } = await Notifications.getPermissionsAsync();
+                if (notifStatus !== 'granted') {
+                    await Notifications.requestPermissionsAsync();
+                }
+
+                const hasPedometer = await Pedometer.isAvailableAsync();
+                if (hasPedometer) {
+                    await Pedometer.requestPermissionsAsync();
+                }
+            } catch (e) {
+                console.log('Permission request error', e);
+            }
+        })();
+
+        // FAB Pulse animation
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(fabPulse, { toValue: 1.05, duration: 2000, useNativeDriver: true }),
+                Animated.timing(fabPulse, { toValue: 1, duration: 2000, useNativeDriver: true }),
+            ])
+        ).start();
     }, []);
 
     const onRefresh = async () => {
@@ -101,14 +136,13 @@ export default function HomeScreen() {
                 <View style={styles.greeting}>
                     <View style={styles.greetingRow}>
                         <View>
+                            <Text style={[styles.greetingSubtext, { color: Colors.textSecondary }]}>{getGreeting()}</Text>
                             <Text style={[styles.greetingText, { color: Colors.textPrimary }]}>
-                                {getGreeting()},{' '}
-                                <Text style={[styles.userName, { color: Colors.accent }]}>{profile?.name || 'Runner'}</Text>
+                                {profile?.name || 'Runner'}
                             </Text>
-                            <Text style={[styles.greetingSubtext, { color: Colors.textSecondary }]}>Let's crush it today! 💪</Text>
                         </View>
-                        <View style={[styles.avatarSmall, { backgroundColor: Colors.surfaceLight, borderColor: Colors.accent }]}>
-                            <Text style={[styles.avatarSmallText, { color: Colors.accent }]}>
+                        <View style={[styles.avatarSmall, { backgroundColor: Colors.surface, borderColor: Colors.border }]}>
+                            <Text style={[styles.avatarSmallText, { color: Colors.textPrimary }]}>
                                 {(profile?.name || 'R')[0].toUpperCase()}
                             </Text>
                         </View>
@@ -151,7 +185,12 @@ export default function HomeScreen() {
                 <Card variant="glass" style={styles.goalCard}>
                     <View style={styles.goalHeader}>
                         <Text style={[styles.sectionTitle, { color: Colors.textPrimary }]}>Target Goal</Text>
-                        {goalProgress >= 100 && <Text style={[styles.completeBadge, { backgroundColor: Colors.successGlow, color: Colors.success }]}>✨ DONE</Text>}
+                        {goalProgress >= 100 && (
+                            <View style={[styles.completeBadge, { backgroundColor: Colors.successGlow, flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+                                <Ionicons name="checkmark-circle" size={14} color={Colors.success} />
+                                <Text style={{ fontSize: FontSize.xs, fontWeight: '700', color: Colors.success }}>DONE</Text>
+                            </View>
+                        )}
                     </View>
                     <ProgressBar
                         progress={goalProgress}
@@ -162,24 +201,31 @@ export default function HomeScreen() {
 
                 {/* Streak + Calories Row */}
                 <View style={styles.miniCardsRow}>
-                    <Card variant={streak > 0 ? 'glow' : 'default'} glowColor={Colors.warning} style={styles.miniCard}>
-                        <Text style={styles.miniCardIcon}>🔥</Text>
-                        <Text style={[styles.miniCardValue, { color: Colors.warning }]}>{streak}</Text>
-                        <Text style={[styles.miniCardLabel, { color: Colors.textMuted }]}>Day Streak</Text>
+                    <Card variant="glass" style={styles.miniCard}>
+                        <Ionicons name="flame" size={32} color={Colors.error} />
+                        <View style={styles.miniCardTextContainer}>
+                            <Text style={[styles.miniCardValue, { color: Colors.textPrimary }]}>{streak}</Text>
+                            <Text style={[styles.miniCardLabel, { color: Colors.textMuted }]}>Day Streak</Text>
+                        </View>
                     </Card>
-                    <Card variant="default" style={styles.miniCard}>
-                        <Text style={styles.miniCardIcon}>⚡</Text>
-                        <Text style={[styles.miniCardValue, { color: Colors.success }]}>
-                            {Math.round(weeklyStats.totalCalories)}
-                        </Text>
-                        <Text style={[styles.miniCardLabel, { color: Colors.textMuted }]}>Calories</Text>
+                    <Card variant="glass" style={styles.miniCard}>
+                        <Ionicons name="flash" size={32} color={Colors.warning} />
+                        <View style={styles.miniCardTextContainer}>
+                            <Text style={[styles.miniCardValue, { color: Colors.textPrimary }]}>
+                                {Math.round(weeklyStats.totalCalories)}
+                            </Text>
+                            <Text style={[styles.miniCardLabel, { color: Colors.textMuted }]}>Kcal</Text>
+                        </View>
                     </Card>
                 </View>
 
                 {/* Recent Runs */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: Colors.textPrimary }]}>📋 Recent Runs</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <Ionicons name="reader" size={24} color={Colors.textPrimary} />
+                            <Text style={[styles.sectionTitle, { color: Colors.textPrimary, marginBottom: 0 }]}>Recent Runs</Text>
+                        </View>
                         {runs.length > 3 && (
                             <TouchableOpacity onPress={() => router.push('/(tabs)/history')}>
                                 <Text style={[styles.seeAll, { color: Colors.accent }]}>See All →</Text>
@@ -191,11 +237,16 @@ export default function HomeScreen() {
                         <SkeletonGroup count={3} height={80} />
                     ) : recentRuns.length === 0 ? (
                         <EmptyState
-                            icon="🏃‍♂️"
+                            icon="walk"
                             title="No runs yet"
                             message="Start your first run and see your progress here!"
                             actionLabel="Start a Run"
-                            onAction={() => router.push('/run/live-run')}
+                            onAction={async () => {
+                                const permitted = await requestPermissions();
+                                if (permitted) {
+                                    router.push('/run/live-run');
+                                }
+                            }}
                         />
                     ) : (
                         <View style={styles.runsList}>
@@ -207,22 +258,30 @@ export default function HomeScreen() {
                                     activeOpacity={0.7}
                                 >
                                     <View style={styles.runCardLeft}>
-                                        <View style={[styles.runCardIndex, { backgroundColor: Colors.surfaceLight }]}>
-                                            <Text style={[styles.runCardIndexText, { color: Colors.accent }]}>{index + 1}</Text>
+                                        <View style={[styles.runCardIconHolder, { backgroundColor: Colors.surfaceLight }]}>
+                                            <Ionicons name="walk" size={20} color={Colors.accent} />
                                         </View>
                                         <View>
                                             <Text style={[styles.runDistance, { color: Colors.textPrimary }]}>
                                                 {formatDistance(run.distance_km, unit)}
                                             </Text>
-                                            <Text style={[styles.runDate, { color: Colors.textMuted }]}>{formatDate(run.started_at)}</Text>
+                                            <Text style={[styles.runDate, { color: Colors.textSecondary }]}>
+                                                {formatDate(run.started_at)}
+                                            </Text>
                                         </View>
                                     </View>
                                     <View style={styles.runCardRight}>
-                                        <Text style={[styles.runPace, { color: Colors.accent }]}>
-                                            {formatPace(run.avg_pace_min_per_km, unit)}
-                                        </Text>
-                                        <Text style={[styles.runDuration, { color: Colors.textSecondary }]}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end' }}>
+                                            <Ionicons name="star" size={12} color={Colors.premium} />
+                                            <Text style={{ fontSize: 12, fontWeight: '700', color: Colors.premium }}>
+                                                {calculateRunScore(run.distance_km, run.avg_pace_min_per_km, run.splits || [])}
+                                            </Text>
+                                        </View>
+                                        <Text style={[styles.runDuration, { color: Colors.textPrimary, textAlign: 'right' }]}>
                                             {formatDuration(run.duration_seconds)}
+                                        </Text>
+                                        <Text style={[styles.runPace, { color: Colors.textMuted, textAlign: 'right' }]}>
+                                            {formatPace(run.avg_pace_min_per_km, unit)}
                                         </Text>
                                     </View>
                                 </TouchableOpacity>
@@ -246,7 +305,10 @@ export default function HomeScreen() {
                         >
                             <View style={styles.premiumContent}>
                                 <View>
-                                    <Text style={styles.premiumTitle}>💎 Upgrade to Pro</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                        <Ionicons name="diamond" size={20} color="#FFFFFF" />
+                                        <Text style={styles.premiumTitle}>Upgrade to Pro</Text>
+                                    </View>
                                     <Text style={styles.premiumSubtitle}>AI Coach, Custom Plans & More</Text>
                                 </View>
                                 <View style={[styles.premiumBadge, { backgroundColor: '#0F172A' }]}>
@@ -259,7 +321,10 @@ export default function HomeScreen() {
 
                 {/* Quick Actions */}
                 <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: Colors.textPrimary, marginBottom: Spacing.md }]}>🚀 Quick Actions</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: Spacing.md }}>
+                        <Ionicons name="rocket" size={24} color={Colors.textPrimary} />
+                        <Text style={[styles.sectionTitle, { color: Colors.textPrimary, marginBottom: 0 }]}>Quick Actions</Text>
+                    </View>
                     <View style={styles.quickActions}>
                         <TouchableOpacity
                             style={styles.quickAction}
@@ -273,7 +338,7 @@ export default function HomeScreen() {
                             activeOpacity={0.7}
                         >
                             <LinearGradient colors={['#F43F5E', '#BE123C']} style={styles.quickActionGradient}>
-                                <Text style={styles.quickActionIcon}>🤖</Text>
+                                <Ionicons name="hardware-chip" size={32} color="#FFFFFF" style={{ marginBottom: Spacing.md }} />
                                 <Text style={[styles.quickActionText, { color: '#FFFFFF' }]}>AI Coach{'\n'}Insights</Text>
                                 {!isPremium && <View style={styles.lockBadge}><Text style={[styles.lockText, { color: Colors.premium }]}>PRO</Text></View>}
                             </LinearGradient>
@@ -281,14 +346,14 @@ export default function HomeScreen() {
 
                         <TouchableOpacity style={styles.quickAction} onPress={() => router.push('/training/plans')} activeOpacity={0.7}>
                             <LinearGradient colors={['#10B981', '#059669']} style={styles.quickActionGradient}>
-                                <Text style={styles.quickActionIcon}>🏋️</Text>
+                                <Ionicons name="barbell" size={32} color="#FFFFFF" style={{ marginBottom: Spacing.md }} />
                                 <Text style={[styles.quickActionText, { color: '#FFFFFF' }]}>Training{'\n'}Plans</Text>
                             </LinearGradient>
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.quickAction} onPress={() => router.push('/training/intervals')} activeOpacity={0.7}>
                             <LinearGradient colors={['#F59E0B', '#D97706']} style={styles.quickActionGradient}>
-                                <Text style={styles.quickActionIcon}>⚡</Text>
+                                <Ionicons name="flash" size={32} color="#FFFFFF" style={{ marginBottom: Spacing.md }} />
                                 <Text style={[styles.quickActionText, { color: '#FFFFFF' }]}>Interval{'\n'}Workouts</Text>
                             </LinearGradient>
                         </TouchableOpacity>
@@ -297,21 +362,28 @@ export default function HomeScreen() {
             </ScrollView>
 
             {/* Start Run FAB */}
-            <TouchableOpacity
-                style={[styles.fab, Shadows.glow(Colors.accent)]}
-                onPress={() => router.push('/run/live-run')}
-                activeOpacity={0.8}
-            >
-                <LinearGradient
-                    colors={[Colors.gradientStart, Colors.gradientEnd]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.fabGradient}
+            <Animated.View style={[styles.fabWrapper, { transform: [{ scale: fabPulse }] }]}>
+                <TouchableOpacity
+                    style={[styles.fab, Shadows.glow(Colors.accent)]}
+                    onPress={async () => {
+                        const permitted = await requestPermissions();
+                        if (permitted) {
+                            router.push('/run/live-run');
+                        }
+                    }}
+                    activeOpacity={0.8}
                 >
-                    <Text style={[styles.fabIcon, { color: '#FFFFFF' }]}>▶</Text>
-                    <Text style={[styles.fabText, { color: '#FFFFFF' }]}>Start Run</Text>
-                </LinearGradient>
-            </TouchableOpacity>
+                    <LinearGradient
+                        colors={[Colors.gradientStart, Colors.gradientEnd]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={styles.fabGradient}
+                    >
+                        <Ionicons name="play" size={24} color="#FFFFFF" />
+                        <Text style={[styles.fabText, { color: '#FFFFFF' }]}>Start Run</Text>
+                    </LinearGradient>
+                </TouchableOpacity>
+            </Animated.View>
         </SafeAreaView>
     );
 }
@@ -324,11 +396,12 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     scrollContent: {
-        padding: Spacing.lg,
-        paddingBottom: 120,
+        paddingTop: Spacing.xxl + Spacing.md,
+        paddingHorizontal: Spacing.xl,
+        paddingBottom: 140,
     },
     greeting: {
-        marginBottom: Spacing.xl,
+        marginBottom: Spacing.xxxl,
     },
     greetingRow: {
         flexDirection: 'row',
@@ -336,31 +409,33 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     greetingText: {
-        fontSize: FontSize.xxl,
-        fontWeight: '600',
-    },
-    userName: {
-        fontWeight: '700',
+        fontSize: FontSize.xxxl,
+        fontWeight: '800',
+        letterSpacing: -1,
+        marginTop: 4,
     },
     greetingSubtext: {
         fontSize: FontSize.md,
-        marginTop: Spacing.xs,
+        fontWeight: '600',
+        textTransform: 'uppercase',
+        letterSpacing: 2,
     },
     avatarSmall: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        borderWidth: 2,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        borderWidth: 1,
         alignItems: 'center',
         justifyContent: 'center',
+        ...Shadows.md,
     },
     avatarSmallText: {
-        fontSize: FontSize.lg,
-        fontWeight: '700',
+        fontSize: FontSize.xl,
+        fontWeight: '800',
     },
     statsCardWrapper: {
-        marginBottom: Spacing.md,
-        borderRadius: BorderRadius.xl,
+        marginBottom: Spacing.xxl,
+        borderRadius: BorderRadius.xxl,
         overflow: 'hidden',
     },
     statsGradient: {
@@ -398,52 +473,59 @@ const styles = StyleSheet.create({
     statDivider: {
         width: 1,
         height: 40,
-        backgroundColor: 'rgba(255,255,255,0.2)',
+        backgroundColor: 'rgba(255,255,255,0.15)',
     },
     goalCard: {
-        marginBottom: Spacing.md,
+        marginBottom: Spacing.xxl,
     },
     goalHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: Spacing.md,
+        marginBottom: Spacing.lg,
     },
     completeBadge: {
         fontSize: FontSize.xs,
-        fontWeight: '700',
-        paddingHorizontal: Spacing.sm,
-        paddingVertical: 2,
-        borderRadius: BorderRadius.sm,
+        fontWeight: '800',
+        letterSpacing: 1,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: 4,
+        borderRadius: BorderRadius.full,
         overflow: 'hidden',
     },
     miniCardsRow: {
         flexDirection: 'row',
-        gap: Spacing.md,
-        marginBottom: Spacing.xl,
+        gap: Spacing.lg,
+        marginBottom: Spacing.xxxl,
     },
     miniCard: {
         flex: 1,
+        flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: Spacing.lg,
+        paddingVertical: Spacing.xl,
+        paddingHorizontal: Spacing.lg,
+        gap: Spacing.md,
     },
     miniCardIcon: {
-        fontSize: 28,
-        marginBottom: Spacing.xs,
+        fontSize: 32,
+    },
+    miniCardTextContainer: {
+        flex: 1,
     },
     miniCardValue: {
         fontSize: FontSize.xxl,
         fontWeight: '800',
+        letterSpacing: -1,
     },
     miniCardLabel: {
         fontSize: FontSize.xs,
         textTransform: 'uppercase',
-        letterSpacing: 0.5,
+        letterSpacing: 1,
+        fontWeight: '600',
         marginTop: 2,
     },
     section: {
-        marginBottom: Spacing.xl,
-        marginTop: Spacing.md,
+        marginBottom: Spacing.xxxl,
     },
     sectionHeader: {
         flexDirection: 'row',
@@ -466,44 +548,47 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        borderRadius: BorderRadius.lg,
-        padding: Spacing.lg,
+        borderRadius: BorderRadius.xl,
+        padding: Spacing.xl,
         borderWidth: 1,
+        ...Shadows.sm,
     },
     runCardLeft: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: Spacing.md,
+        gap: Spacing.lg,
     },
-    runCardIndex: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
+    runCardIconHolder: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    runCardIndexText: {
-        fontSize: FontSize.sm,
-        fontWeight: '700',
+    runCardIconText: {
+        fontSize: FontSize.lg,
     },
     runCardRight: {
         alignItems: 'flex-end',
-        gap: Spacing.xs,
+        gap: 4,
     },
     runDate: {
         fontSize: FontSize.xs,
-        marginTop: 2,
+        fontWeight: '500',
+        marginTop: 4,
     },
     runDistance: {
-        fontSize: FontSize.lg,
+        fontSize: FontSize.xl,
+        fontWeight: '800',
+        letterSpacing: -0.5,
+    },
+    runDuration: {
+        fontSize: FontSize.md,
         fontWeight: '700',
     },
     runPace: {
-        fontSize: FontSize.md,
-        fontWeight: '600',
-    },
-    runDuration: {
         fontSize: FontSize.sm,
+        fontWeight: '600',
     },
     fab: {
         position: 'absolute',
@@ -597,5 +682,11 @@ const styles = StyleSheet.create({
     lockText: {
         fontSize: 10,
         fontWeight: '900',
+    },
+    fabWrapper: {
+        position: 'absolute',
+        bottom: Platform.OS === 'ios' ? 120 : 110,
+        alignSelf: 'center',
+        zIndex: 100,
     },
 });

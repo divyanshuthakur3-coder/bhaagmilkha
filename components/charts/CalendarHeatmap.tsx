@@ -7,7 +7,7 @@ interface CalendarHeatmapProps {
     month?: Date;
 }
 
-export function CalendarHeatmap({ runDates, month }: CalendarHeatmapProps) {
+export const CalendarHeatmap = React.memo(function CalendarHeatmap({ runDates, month }: CalendarHeatmapProps) {
     const targetMonth = month || new Date();
     const year = targetMonth.getFullYear();
     const monthIdx = targetMonth.getMonth();
@@ -88,7 +88,7 @@ export function CalendarHeatmap({ runDates, month }: CalendarHeatmapProps) {
             <View style={styles.grid}>{cells}</View>
         </View>
     );
-}
+});
 
 const styles = StyleSheet.create({
     container: {

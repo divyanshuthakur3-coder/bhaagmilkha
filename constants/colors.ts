@@ -1,14 +1,14 @@
 export const Colors = {
-    background: '#0A0A0F',
-    backgroundAlt: '#0F0F18',
-    surface: '#141425',
-    surfaceLight: '#1E1E38',
-    surfaceGlass: 'rgba(30, 30, 60, 0.6)',
+    background: '#05050A', // Deeper OLED black
+    backgroundAlt: '#0A0A12',
+    surface: '#15151F',
+    surfaceLight: '#1C1C28',
+    surfaceGlass: 'rgba(255, 255, 255, 0.05)', // Increased opacity for better visibility
 
     accent: '#3B82F6',
     accentLight: '#60A5FA',
     accentDark: '#2563EB',
-    accentGlow: 'rgba(59, 130, 246, 0.25)',
+    accentGlow: 'rgba(59, 130, 246, 0.15)', // Softer glow
 
     secondary: '#8B5CF6',
     secondaryLight: '#A78BFA',
@@ -31,16 +31,16 @@ export const Colors = {
     textMuted: '#6B7280',
     textAccent: '#93C5FD',
 
-    border: '#1F1F3A',
-    borderLight: '#2D2D50',
+    border: 'rgba(255, 255, 255, 0.05)', // Softer subtle borders
+    borderLight: 'rgba(255, 255, 255, 0.15)',
     borderAccent: 'rgba(59, 130, 246, 0.3)',
 
-    overlay: 'rgba(0, 0, 0, 0.7)',
-    overlayLight: 'rgba(0, 0, 0, 0.4)',
+    overlay: 'rgba(0, 0, 0, 0.75)',
+    overlayLight: 'rgba(0, 0, 0, 0.45)',
 
-    gradientStart: '#3B82F6',
-    gradientMiddle: '#6366F1',
-    gradientEnd: '#8B5CF6',
+    gradientStart: '#2563EB', // Deeper blue start
+    gradientMiddle: '#4F46E5', // Indigo middle
+    gradientEnd: '#8B5CF6', // Purple end
 
     gradientSuccessStart: '#10B981',
     gradientSuccessEnd: '#059669',
@@ -91,28 +91,28 @@ export const Shadows = {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.15,
-        shadowRadius: 4,
-        elevation: 2,
+        shadowRadius: 8,
+        elevation: 3,
     },
     md: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        elevation: 4,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.25,
+        shadowRadius: 16,
+        elevation: 6,
     },
     lg: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-        elevation: 8,
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.4,
+        shadowRadius: 32,
+        elevation: 12,
     },
     glow: (color: string) => ({
         shadowColor: color,
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 12,
+        shadowOpacity: 0.35,
+        shadowRadius: 24, // Wider, softer glow spread
         elevation: 8,
     }),
 };

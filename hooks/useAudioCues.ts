@@ -18,16 +18,18 @@ export function useAudioCues() {
             if (soundRef.current) {
                 await soundRef.current.unloadAsync();
             }
+            // Check if file might exist (dynamically) or just skip if it's missing from repo
+            // console.log('Playing milestone sound...');
+
+            /* 
+               Removing require() which crashes if file is missing. 
+               Uncomment once you add assets/milestone.mp3
             const { sound } = await Audio.Sound.createAsync(
                 require('@/assets/milestone.mp3'),
                 { shouldPlay: true, volume: 1.0 }
             );
             soundRef.current = sound;
-            sound.setOnPlaybackStatusUpdate((status) => {
-                if ('didJustFinish' in status && status.didJustFinish) {
-                    sound.unloadAsync();
-                }
-            });
+            */
         } catch (err) {
             console.warn('Beep failed:', err);
         }

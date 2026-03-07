@@ -1,9 +1,29 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
-import MapView, { Polyline, Marker } from 'react-native-maps';
+import MapLibre, { CameraRef } from '@maplibre/maplibre-react-native';
 import { Coordinate } from '@/lib/types';
 import { Colors } from '@/constants/colors';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
+
+const DETAILED_FREE_STYLE = {
+    version: 8,
+    sources: {
+        'osm': {
+            type: 'raster',
+            tiles: ['https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'],
+            tileSize: 256,
+        }
+    },
+    layers: [
+        {
+            id: 'osm-layer',
+            type: 'raster',
+            source: 'osm',
+            minzoom: 0,
+            maxzoom: 20
+        }
+    ]
+};
 
 interface RunMapProps {
     coordinates: Coordinate[];
@@ -17,21 +37,39 @@ export function RunMap({
     interactive = false,
 }: RunMapProps) {
     const [mapReady, setMapReady] = useState(false);
-    const mapRef = useRef<MapView>(null);
+    const cameraRef = useRef<CameraRef>(null);
+
+    const validCoords = useMemo(() => coordinates
+        .filter(c => c && typeof c.lat === 'number' && typeof c.lng === 'number')
+        .map(c => [c.lng, c.lat]), [coordinates]);
 
     useEffect(() => {
-        if (mapReady && coordinates.length >= 2 && mapRef.current) {
-            mapRef.current.fitToCoordinates(
-                coordinates.map((c) => ({ latitude: c.lat, longitude: c.lng })),
-                {
-                    edgePadding: { top: 40, right: 40, bottom: 40, left: 40 },
-                    animated: false,
-                }
+        if (mapReady && validCoords.length >= 2 && cameraRef.current) {
+            let minLng = validCoords[0][0];
+            let maxLng = validCoords[0][0];
+            let minLat = validCoords[0][1];
+            let maxLat = validCoords[0][1];
+
+            validCoords.forEach(c => {
+                if (c[0] < minLng) minLng = c[0];
+                if (c[0] > maxLng) maxLng = c[0];
+                if (c[1] < minLat) minLat = c[1];
+                if (c[1] > maxLat) maxLat = c[1];
+            });
+
+            const pLat = (maxLat - minLat) * 0.1;
+            const pLng = (maxLng - minLng) * 0.1;
+
+            cameraRef.current.fitBounds(
+                [maxLng + pLng, maxLat + pLat],
+                [minLng - pLng, minLat - pLat],
+                20,
+                0
             );
         }
-    }, [mapReady, coordinates]);
+    }, [mapReady, validCoords]);
 
-    if (coordinates.length < 2) {
+    if (validCoords.length < 2) {
         return (
             <View style={[styles.placeholder, { height }]}>
                 <LoadingSkeleton width="100%" height={height} borderRadius={12} />
@@ -49,52 +87,56 @@ export function RunMap({
                     style={StyleSheet.absoluteFillObject}
                 />
             )}
-            <MapView
-                ref={mapRef}
+            <MapLibre.MapView
                 style={styles.map}
-                onMapReady={() => setMapReady(true)}
+                mapStyle={DETAILED_FREE_STYLE}
+                onDidFinishLoadingMap={() => setMapReady(true)}
                 scrollEnabled={interactive}
                 zoomEnabled={interactive}
                 rotateEnabled={interactive}
                 pitchEnabled={false}
-                customMapStyle={darkMapStyle}
+                logoEnabled={false}
+                attributionEnabled={false}
+                surfaceView={true}
             >
-                <Polyline
-                    coordinates={coordinates.map((c) => ({
-                        latitude: c.lat,
-                        longitude: c.lng,
-                    }))}
-                    strokeColor={Colors.accent}
-                    strokeWidth={3}
+                <MapLibre.Camera
+                    ref={cameraRef}
+                    defaultSettings={{
+                        centerCoordinate: validCoords[Math.floor(validCoords.length / 2)],
+                        zoomLevel: 14,
+                    }}
                 />
-                <Marker
-                    coordinate={{
-                        latitude: coordinates[0].lat,
-                        longitude: coordinates[0].lng,
+
+                <MapLibre.ShapeSource
+                    id="routeSourceHistory"
+                    shape={{
+                        type: 'Feature',
+                        geometry: { type: 'LineString', coordinates: validCoords },
+                        properties: {}
                     }}
                 >
+                    <MapLibre.LineLayer
+                        id="routeLayerHistory"
+                        style={{
+                            lineColor: Colors.accent,
+                            lineWidth: 4,
+                            lineJoin: 'round',
+                            lineCap: 'round',
+                        }}
+                    />
+                </MapLibre.ShapeSource>
+
+                <MapLibre.MarkerView coordinate={validCoords[0]}>
                     <View style={styles.startDot} />
-                </Marker>
-                <Marker
-                    coordinate={{
-                        latitude: coordinates[coordinates.length - 1].lat,
-                        longitude: coordinates[coordinates.length - 1].lng,
-                    }}
-                >
+                </MapLibre.MarkerView>
+
+                <MapLibre.MarkerView coordinate={validCoords[validCoords.length - 1]}>
                     <View style={styles.endDot} />
-                </Marker>
-            </MapView>
+                </MapLibre.MarkerView>
+            </MapLibre.MapView>
         </View>
     );
 }
-
-const darkMapStyle = [
-    { elementType: 'geometry', stylers: [{ color: '#1d2c4d' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#8ec3b9' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#1a3646' }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#304a7d' }] },
-];
 
 const styles = StyleSheet.create({
     container: {
@@ -114,7 +156,7 @@ const styles = StyleSheet.create({
         borderRadius: 6,
         backgroundColor: Colors.success,
         borderWidth: 2,
-        borderColor: Colors.textPrimary,
+        borderColor: '#05050A',
     },
     endDot: {
         width: 12,
@@ -122,6 +164,6 @@ const styles = StyleSheet.create({
         borderRadius: 6,
         backgroundColor: Colors.error,
         borderWidth: 2,
-        borderColor: Colors.textPrimary,
+        borderColor: '#05050A',
     },
 });

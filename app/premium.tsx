@@ -4,18 +4,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/ThemeContext';
 import { usePremium } from '@/context/PremiumContext';
 import { FontSize, Spacing, BorderRadius, Shadows } from '@/constants/colors';
 
 const FEATURES = [
-    { title: 'Advanced Analytics', desc: 'Pace zones, VO2max estimate, and trend charts', icon: '📊' },
-    { title: 'AI Run Coach', desc: 'Personalized tips and performance feedback after runs', icon: '🤖' },
-    { title: 'Custom Training Plans', desc: 'Build your own tailored full-week training schedule', icon: '📝' },
-    { title: 'Run Replay Animation', desc: 'Watch an animated replay of your route', icon: '🎬' },
-    { title: 'Unlimited Interval Workouts', desc: 'Unlock all 5 pro interval sessions + custom builder', icon: '⚡' },
-    { title: 'Unlimited Shoes', desc: 'Track mileage for unlimited pairs of running shoes', icon: '👟' },
-    { title: 'Data Export', desc: 'Download your run history as CSV or GPX', icon: '📥' },
+    { title: 'Advanced Analytics', desc: 'Pace zones, VO2max estimate, and trend charts', icon: 'bar-chart' },
+    { title: 'AI Run Coach', desc: 'Personalized tips and performance feedback after runs', icon: 'hardware-chip' },
+    { title: 'Custom Training Plans', desc: 'Build your own tailored full-week training schedule', icon: 'calendar' },
+    { title: 'Run Replay Animation', desc: 'Watch an animated replay of your route', icon: 'play-circle' },
+    { title: 'Unlimited Interval Workouts', desc: 'Unlock all 5 pro interval sessions + custom builder', icon: 'flash' },
+    { title: 'Unlimited Shoes', desc: 'Track mileage for unlimited pairs of running shoes', icon: 'walk' },
+    { title: 'Data Export', desc: 'Download your run history as CSV or GPX', icon: 'download' },
+    { title: 'Ad-Free Experience', desc: 'Zero advertisements, pure focus on your performance', icon: 'shield-check' },
 ];
 
 export default function PremiumScreen() {
@@ -42,9 +44,9 @@ export default function PremiumScreen() {
                     <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
                         <Text style={[styles.closeText, { color: Colors.textMuted }]}>✕</Text>
                     </TouchableOpacity>
-                    <Text style={styles.emoji}>💎</Text>
+                    <Ionicons name="diamond" size={64} style={{ marginBottom: 16 }} color={Colors.premium} />
                     <Text style={[styles.title, { color: Colors.textPrimary }]}>RunTracker <Text style={[styles.titleAccent, { color: Colors.premium }]}>Pro</Text></Text>
-                    <Text style={[styles.subtitle, { color: Colors.textSecondary }]}>Unlock your full potential as a runner with advanced tools and insights.</Text>
+                    <Text style={[styles.subtitle, { color: Colors.textSecondary }]}>Experience a premium, <Text style={{ color: Colors.premium, fontWeight: 'bold' }}>ad-free</Text> journey with advanced tools and performance insights.</Text>
                 </View>
 
                 {/* Features List */}
@@ -52,7 +54,7 @@ export default function PremiumScreen() {
                     {FEATURES.map((feat, i) => (
                         <View key={i} style={styles.featureRow}>
                             <View style={[styles.iconContainer, { backgroundColor: Colors.premiumGlow }]}>
-                                <Text style={styles.icon}>{feat.icon}</Text>
+                                <Ionicons name={feat.icon as any} size={24} color={Colors.premium} />
                             </View>
                             <View style={styles.featureTextContainer}>
                                 <Text style={[styles.featureTitle, { color: Colors.textPrimary }]}>{feat.title}</Text>
@@ -94,7 +96,9 @@ export default function PremiumScreen() {
                     </View>
                 ) : (
                     <View style={[styles.activeSection, { backgroundColor: Colors.surfaceLight, borderColor: Colors.premiumGlow }]}>
-                        <Text style={styles.activeEmoji}>✨</Text>
+                        <View style={{ marginBottom: Spacing.md }}>
+                            <Ionicons name="sparkles" size={48} color={Colors.premium} />
+                        </View>
                         <Text style={[styles.activeTitle, { color: Colors.premium }]}>You are a Pro member!</Text>
                         <Text style={[styles.activeDesc, { color: Colors.textSecondary }]}>Thank you for supporting RunTracker. All premium features are unlocked.</Text>
                         <TouchableOpacity style={[styles.manageBtn, { backgroundColor: Colors.surface, borderColor: Colors.border }]}>

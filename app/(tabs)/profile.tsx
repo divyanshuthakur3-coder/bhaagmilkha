@@ -14,19 +14,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useUserStore } from '@/store/useUserStore';
+import { useRunHistoryStore } from '@/store/useRunHistoryStore';
 import { usePremium } from '@/context/PremiumContext';
 import { useTheme } from '@/context/ThemeContext';
 import { achievementsApi, auth } from '@/lib/api';
+import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ACHIEVEMENTS } from '@/constants/achievements';
-import { FontSize, Spacing, BorderRadius, Shadows } from '@/constants/colors';
+import { Colors, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/colors';
 
 export default function ProfileScreen() {
     const { theme, colors: Colors } = useTheme();
     const router = useRouter();
     const { isPremium, checkPremiumFeature } = usePremium();
     const { profile, updateProfile, signOut } = useUserStore();
+    const { runs } = useRunHistoryStore();
     const [name, setName] = useState(profile?.name || '');
     const [weeklyGoal, setWeeklyGoal] = useState(String(profile?.weekly_goal_km || 20));
     const [weight, setWeight] = useState(String(profile?.weight_kg || 70));
@@ -131,6 +134,55 @@ export default function ProfileScreen() {
     const earnedCount = earnedBadges.size;
     const totalCount = ACHIEVEMENTS.length;
 
+    // Calculate progress stats for UI feedback
+    const stats = React.useMemo(() => {
+        const totalRuns = runs.length;
+        const totalDistanceKm = runs.reduce((sum, r) => sum + r.distance_km, 0);
+        const longestRunKm = Math.max(...runs.map((r) => r.distance_km), 0);
+
+        // streak logic from run history store
+        const sortedDates = Array.from(
+            new Set(runs.map((r) => new Date(r.started_at).toDateString()))
+        ).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+        let streak = 1;
+        let maxStreak = 1;
+        for (let i = 1; i < sortedDates.length; i++) {
+            const diff = new Date(sortedDates[i - 1]).getTime() - new Date(sortedDates[i]).getTime();
+            if (diff <= 86400000 * 1.5) {
+                streak++;
+                maxStreak = Math.max(maxStreak, streak);
+            } else {
+                streak = 1;
+            }
+        }
+
+        return {
+            totalRuns,
+            totalDistanceKm,
+            longestStreakDays: sortedDates.length > 0 ? maxStreak : 0,
+            longestRunKm
+        };
+    }, [runs]);
+
+    const getAchievementProgress = (achievementId: string) => {
+        switch (achievementId) {
+            case 'first_run': return Math.min(1, stats.totalRuns / 1);
+            case 'five_runs': return Math.min(1, stats.totalRuns / 5);
+            case 'ten_runs': return Math.min(1, stats.totalRuns / 10);
+            case 'thirty_runs': return Math.min(1, stats.totalRuns / 30);
+            case 'fifty_runs': return Math.min(1, stats.totalRuns / 50);
+            case 'hundred_runs': return Math.min(1, stats.totalRuns / 100);
+            case 'century': return Math.min(1, stats.totalDistanceKm / 100);
+            case 'two_fifty_km': return Math.min(1, stats.totalDistanceKm / 250);
+            case 'five_hundred_km': return Math.min(1, stats.totalDistanceKm / 500);
+            case 'thousand_km': return Math.min(1, stats.totalDistanceKm / 1000);
+            case 'consistent': return Math.min(1, stats.longestStreakDays / 7);
+            case 'streak_master': return Math.min(1, stats.longestStreakDays / 14);
+            default: return earnedBadges.has(achievementId) ? 1 : 0;
+        }
+    };
+
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
             <ScrollView
@@ -155,13 +207,13 @@ export default function ProfileScreen() {
                         <View style={styles.premiumStatusContent}>
                             <View style={styles.premiumStatusText}>
                                 <Text style={[styles.premiumStatusTitle, !isPremium ? { color: '#0F172A' } : { color: Colors.textPrimary }]}>
-                                    {isPremium ? '✨ Pro Member' : '💎 Go Pro'}
+                                    {isPremium ? <><Ionicons name="sparkles" size={16} color={Colors.textPrimary} /> Pro Member</> : <><Ionicons name="diamond" size={16} color="#0F172A" /> Go Pro</>}
                                 </Text>
                                 <Text style={[styles.premiumStatusSubtitle, !isPremium ? { color: 'rgba(15, 23, 42, 0.7)' } : { color: Colors.textSecondary }]}>
-                                    {isPremium ? 'Active Subscription' : 'Unlock AI Coach & Plans'}
+                                    {isPremium ? 'Unlimited Access • Ad-Free' : 'Unlock AI Coach & Plans'}
                                 </Text>
                             </View>
-                            <Text style={styles.premiumStatusIcon}>{isPremium ? '💎' : '→'}</Text>
+                            <Text style={[styles.premiumStatusIcon, !isPremium && { color: '#0F172A' }]}>{isPremium ? <Ionicons name="diamond" size={24} color={Colors.textPrimary} /> : '→'}</Text>
                         </View>
                     </LinearGradient>
                 </TouchableOpacity>
@@ -183,7 +235,8 @@ export default function ProfileScreen() {
                     <Text style={[styles.profileName, { color: Colors.textPrimary }]}>{profile?.name || 'Runner'}</Text>
                     <Text style={[styles.email, { color: Colors.textSecondary }]}>{profile?.email || ''}</Text>
                     <View style={[styles.memberBadge, { backgroundColor: Colors.accentGlow }]}>
-                        <Text style={[styles.memberBadgeText, { color: Colors.accent }]}>🏃 RunTracker Member</Text>
+                        <Ionicons name="walk" size={16} color={Colors.accent} />
+                        <Text style={[styles.memberBadgeText, { color: Colors.accent }]}>RunTracker Member</Text>
                     </View>
                 </View>
 
@@ -207,7 +260,10 @@ export default function ProfileScreen() {
 
                 {/* Settings */}
                 <Card variant="glass" style={styles.settingsCard}>
-                    <Text style={[styles.sectionTitle, { color: Colors.textPrimary }]}>⚙️ Settings</Text>
+                    <View style={styles.sectionHeader}>
+                        <Ionicons name="settings" size={24} color={Colors.textPrimary} />
+                        <Text style={[styles.sectionTitle, { color: Colors.textPrimary, marginBottom: 0 }]}>Settings</Text>
+                    </View>
 
                     <View style={styles.settingRow}>
                         <Text style={[styles.settingLabel, { color: Colors.textSecondary }]}>Name</Text>
@@ -264,8 +320,11 @@ export default function ProfileScreen() {
                 </Card>
 
                 {/* Security Section */}
-                <Card variant="default" style={styles.securityCard}>
-                    <Text style={[styles.sectionTitle, { color: Colors.textPrimary }]}>🔒 Security</Text>
+                <Card variant="glass" style={styles.securityCard}>
+                    <View style={styles.sectionHeader}>
+                        <Ionicons name="lock-closed" size={24} color={Colors.textPrimary} />
+                        <Text style={[styles.sectionTitle, { color: Colors.textPrimary, marginBottom: 0 }]}>Security</Text>
+                    </View>
 
                     <TouchableOpacity
                         style={styles.securityOption}
@@ -273,7 +332,7 @@ export default function ProfileScreen() {
                         activeOpacity={0.7}
                     >
                         <View style={styles.securityOptionLeft}>
-                            <Text style={styles.securityIcon}>🔑</Text>
+                            <Ionicons name="key" size={20} color={Colors.textPrimary} />
                             <Text style={[styles.securityText, { color: Colors.textPrimary }]}>Change Password</Text>
                         </View>
                         <Text style={[styles.chevron, { color: Colors.textMuted }]}>›</Text>
@@ -287,7 +346,7 @@ export default function ProfileScreen() {
                         activeOpacity={0.7}
                     >
                         <View style={styles.securityOptionLeft}>
-                            <Text style={styles.securityIcon}>🗑️</Text>
+                            <Ionicons name="trash" size={20} color={Colors.error} />
                             <Text style={[styles.securityText, { color: Colors.error }]}>
                                 Delete Account
                             </Text>
@@ -297,8 +356,11 @@ export default function ProfileScreen() {
                 </Card>
 
                 {/* Data & Features */}
-                <Card variant="default" style={styles.securityCard}>
-                    <Text style={[styles.sectionTitle, { color: Colors.textPrimary }]}>📦 Data & Features</Text>
+                <Card variant="glass" style={styles.securityCard}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: Spacing.md }}>
+                        <Ionicons name="server" size={20} color={Colors.textPrimary} />
+                        <Text style={[styles.sectionTitle, { color: Colors.textPrimary, marginBottom: 0 }]}>Data & Features</Text>
+                    </View>
 
                     <TouchableOpacity
                         style={styles.securityOption}
@@ -310,7 +372,7 @@ export default function ProfileScreen() {
                         activeOpacity={0.7}
                     >
                         <View style={styles.securityOptionLeft}>
-                            <Text style={styles.securityIcon}>{isPremium ? '📥' : '🔒'}</Text>
+                            <Ionicons name={isPremium ? 'download' : 'lock-closed'} size={24} color={isPremium ? Colors.textPrimary : Colors.textMuted} style={{ paddingRight: Spacing.md }} />
                             <Text style={[styles.securityText, { color: isPremium ? Colors.textPrimary : Colors.premium }]}>Export Runs (CSV)</Text>
                         </View>
                         {!isPremium && <Text style={{ fontSize: 10, fontWeight: '800', color: '#FFFFFF', backgroundColor: Colors.premium, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginRight: Spacing.sm }}>PRO</Text>}
@@ -325,7 +387,7 @@ export default function ProfileScreen() {
                         activeOpacity={0.7}
                     >
                         <View style={styles.securityOptionLeft}>
-                            <Text style={styles.securityIcon}>👟</Text>
+                            <Ionicons name="walk" size={24} color={Colors.textPrimary} style={{ paddingRight: Spacing.md }} />
                             <Text style={[styles.securityText, { color: Colors.textPrimary }]}>Shoe Tracker</Text>
                         </View>
                         <Text style={[styles.chevron, { color: Colors.textMuted }]}>›</Text>
@@ -339,7 +401,7 @@ export default function ProfileScreen() {
                         activeOpacity={0.7}
                     >
                         <View style={styles.securityOptionLeft}>
-                            <Text style={styles.securityIcon}>🏋️</Text>
+                            <Ionicons name="barbell" size={24} color={Colors.textPrimary} style={{ paddingRight: Spacing.md }} />
                             <Text style={[styles.securityText, { color: Colors.textPrimary }]}>Training Plans</Text>
                         </View>
                         <Text style={[styles.chevron, { color: Colors.textMuted }]}>›</Text>
@@ -349,7 +411,10 @@ export default function ProfileScreen() {
                 {/* Achievements */}
                 <View style={styles.section}>
                     <View style={styles.achievementsHeader}>
-                        <Text style={[styles.sectionTitle, { color: Colors.textPrimary }]}>🏆 Achievements</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <Ionicons name="trophy" size={20} color={Colors.textPrimary} />
+                            <Text style={[styles.sectionTitle, { color: Colors.textPrimary, marginBottom: 0 }]}>Achievements</Text>
+                        </View>
                         <Text style={[styles.badgeCount, { color: Colors.accent }]}>
                             {earnedCount}/{totalCount}
                         </Text>
@@ -357,6 +422,9 @@ export default function ProfileScreen() {
                     <View style={styles.badgesGrid}>
                         {ACHIEVEMENTS.map((achievement) => {
                             const earned = earnedBadges.has(achievement.id);
+                            const progress = getAchievementProgress(achievement.id);
+                            const showProgress = !earned && progress > 0;
+
                             return (
                                 <Card
                                     key={achievement.id}
@@ -373,9 +441,32 @@ export default function ProfileScreen() {
                                     <Text style={[styles.badgeTitle, { color: earned ? Colors.textPrimary : Colors.textMuted }]}>
                                         {achievement.title}
                                     </Text>
-                                    <Text style={[styles.badgeDesc, { color: Colors.textMuted }]}>
-                                        {earned ? achievement.description : '🔒 Locked'}
-                                    </Text>
+
+                                    {showProgress && (
+                                        <View style={styles.badgeProgressContainer}>
+                                            <View style={[styles.badgeProgressTrack, { backgroundColor: Colors.borderLight }]}>
+                                                <View
+                                                    style={[
+                                                        styles.badgeProgressFill,
+                                                        {
+                                                            backgroundColor: Colors.accent,
+                                                            width: `${progress * 100}%`
+                                                        }
+                                                    ]}
+                                                />
+                                            </View>
+                                            <Text style={[styles.badgeProgressText, { color: Colors.textMuted }]}>
+                                                {Math.round(progress * 100)}%
+                                            </Text>
+                                        </View>
+                                    )}
+
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: showProgress ? 2 : 4 }}>
+                                        {!earned && <Ionicons name="lock-closed" size={10} color={Colors.textMuted} />}
+                                        <Text style={[styles.badgeDesc, { color: Colors.textMuted, marginTop: 0 }]}>
+                                            {earned ? achievement.description : (progress > 0 ? achievement.description : 'Locked')}
+                                        </Text>
+                                    </View>
                                 </Card>
                             );
                         })}
@@ -384,7 +475,10 @@ export default function ProfileScreen() {
 
                 {/* About */}
                 <Card variant="default" style={styles.aboutCard}>
-                    <Text style={[styles.sectionTitle, { color: Colors.textPrimary }]}>ℹ️ About</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: Spacing.md }}>
+                        <Ionicons name="information-circle" size={20} color={Colors.textPrimary} />
+                        <Text style={[styles.sectionTitle, { color: Colors.textPrimary, marginBottom: 0 }]}>About</Text>
+                    </View>
                     <View style={styles.aboutRow}>
                         <Text style={[styles.aboutLabel, { color: Colors.textSecondary }]}>App Version</Text>
                         <Text style={[styles.aboutValue, { color: Colors.textPrimary }]}>1.0.0</Text>
@@ -414,7 +508,10 @@ export default function ProfileScreen() {
             >
                 <View style={[styles.modalOverlay, { backgroundColor: Colors.overlay }]}>
                     <View style={[styles.modalContent, { backgroundColor: Colors.surface }]}>
-                        <Text style={[styles.modalTitle, { color: Colors.textPrimary }]}>🔑 Change Password</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: Spacing.xxl }}>
+                            <Ionicons name="key" size={28} color={Colors.textPrimary} />
+                            <Text style={[styles.modalTitle, { color: Colors.textPrimary, marginBottom: 0 }]}>Change Password</Text>
+                        </View>
 
                         <View style={styles.modalInputGroup}>
                             <Text style={[styles.modalLabel, { color: Colors.textSecondary }]}>Current Password</Text>
@@ -486,7 +583,8 @@ const styles = StyleSheet.create({
     },
     header: {
         fontSize: FontSize.xxxl,
-        fontWeight: '800',
+        fontWeight: '900',
+        letterSpacing: -1,
         marginBottom: Spacing.xl,
     },
     // Avatar
@@ -562,6 +660,12 @@ const styles = StyleSheet.create({
         marginVertical: Spacing.xs,
     },
     // Settings
+    sectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.sm,
+        marginBottom: Spacing.lg,
+    },
     settingsCard: {
         marginBottom: Spacing.md,
     },
@@ -588,8 +692,10 @@ const styles = StyleSheet.create({
         marginBottom: Spacing.xs,
     },
     settingInput: {
+        backgroundColor: 'rgba(0,0,0,0.05)',
         borderWidth: 1,
-        borderRadius: BorderRadius.sm,
+        borderColor: Colors.borderLight,
+        borderRadius: BorderRadius.md,
         padding: Spacing.md,
         fontSize: FontSize.md,
     },
@@ -662,8 +768,28 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     badgeDesc: {
-        fontSize: FontSize.xs,
+        fontSize: 10,
         textAlign: 'center',
+    },
+    badgeProgressContainer: {
+        width: '100%',
+        marginTop: 4,
+        alignItems: 'center',
+    },
+    badgeProgressTrack: {
+        width: '80%',
+        height: 4,
+        borderRadius: 2,
+        overflow: 'hidden',
+    },
+    badgeProgressFill: {
+        height: '100%',
+        borderRadius: 2,
+    },
+    badgeProgressText: {
+        fontSize: 8,
+        fontWeight: '700',
+        marginTop: 2,
     },
     // About
     aboutCard: {

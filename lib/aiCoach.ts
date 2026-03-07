@@ -1,4 +1,5 @@
-import { Run, Split } from './types';
+import { Run, Split, PreferredUnit } from './types';
+import { formatPace } from './formatters';
 
 export interface CoachInsight {
     title: string;
@@ -6,21 +7,27 @@ export interface CoachInsight {
     type: 'praise' | 'correction' | 'neutral';
 }
 
-export function generateRunInsights(run: Run): CoachInsight[] {
+export function generateRunInsights(run: Run, unit: PreferredUnit = 'km'): CoachInsight[] {
     const insights: CoachInsight[] = [];
     const splits = run.splits || [];
 
+    // Convert thresholds if using miles
+    const varianceThreshold = unit === 'mi' ? 0.65 : 0.4; // 0.65 min/mi approx 0.4 min/km
+    const consistencyThreshold = unit === 'mi' ? 0.5 : 0.3;
+    const fastThreshold = unit === 'mi' ? 7.2 : 4.5; // ~7:15 min/mi approx 4:30 min/km
+
     if (splits.length < 2) {
-        if (run.distance_km < 1) {
+        if (run.distance_km < (unit === 'mi' ? 1.6 : 1)) {
             insights.push({
                 title: 'Great start!',
-                message: "Every journey begins with a single step. Keep building consistency and try to run a full kilometer next time to start tracking your splits.",
+                message: `Every journey begins with a single step. Keep building consistency and try to run a full ${unit === 'mi' ? 'mile' : 'kilometer'} next time to start tracking your splits.`,
                 type: 'neutral',
             });
         } else {
+            const paceFormatted = formatPace(run.avg_pace_min_per_km, unit);
             insights.push({
                 title: 'Solid effort',
-                message: `You maintained an average pace of ${run.avg_pace_min_per_km.toFixed(1)} min/km. Keep it up!`,
+                message: `You maintained an average pace of ${paceFormatted.replace(/\/.*/, '')} min/${unit}. Keep it up!`,
                 type: 'neutral',
             });
         }
@@ -28,23 +35,19 @@ export function generateRunInsights(run: Run): CoachInsight[] {
     }
 
     // Analyze splits
-    let isConsistent = true;
-    let positiveSplit = false; // Pace gets slower (higher min/km)
-    let negativeSplit = false; // Pace gets faster (lower min/km)
+    let positiveSplit = false;
+    let negativeSplit = false;
 
+    // Pace is min/km in data, but we use the relative difference so unit scaling is handled by Thresholds
     const firstHalfPace = splits.slice(0, Math.floor(splits.length / 2)).reduce((acc, s) => acc + s.pace_min_per_km, 0) / Math.floor(splits.length / 2);
     const secondHalfPace = splits.slice(Math.floor(splits.length / 2)).reduce((acc, s) => acc + s.pace_min_per_km, 0) / Math.ceil(splits.length / 2);
 
-    // Variance threshold: 0.5 min/km difference
-    if (secondHalfPace > firstHalfPace + 0.4) {
+    if (secondHalfPace > firstHalfPace + varianceThreshold) {
         positiveSplit = true;
-        isConsistent = false;
-    } else if (secondHalfPace < firstHalfPace - 0.4) {
+    } else if (secondHalfPace < firstHalfPace - varianceThreshold) {
         negativeSplit = true;
-        isConsistent = false;
     }
 
-    // Look for a significant drop-off
     let maxPace = splits[0].pace_min_per_km;
     let minPace = splits[0].pace_min_per_km;
     let slowestKm = splits[0].km;
@@ -57,7 +60,7 @@ export function generateRunInsights(run: Run): CoachInsight[] {
         if (s.pace_min_per_km < minPace) minPace = s.pace_min_per_km;
     });
 
-    if (maxPace - minPace < 0.3) {
+    if (maxPace - minPace < consistencyThreshold) {
         insights.push({
             title: 'Metronome Pacing ⏱️',
             message: "Incredible consistency! Your pace barely drifted. This is the hallmark of an experienced runner who knows their body well.",
@@ -72,13 +75,14 @@ export function generateRunInsights(run: Run): CoachInsight[] {
     } else if (positiveSplit) {
         insights.push({
             title: 'Watch Your Start 🐢',
-            message: `You slowed down significantly by km ${slowestKm}. You might have started too fast. Next run, try to consciously hold back in the first kilometer.`,
+            message: `You slowed down significantly by ${unit === 'mi' ? 'mile' : 'km'} ${slowestKm}. You might have started too fast. Next run, try to consciously hold back in the first ${unit === 'mi' ? 'mile' : 'kilometer'}.`,
             type: 'correction',
         });
     }
 
-    // Check speed
-    if (run.avg_pace_min_per_km < 4.5 && run.distance_km >= 3) {
+    // Check speed (using unit-aware threshold)
+    const runPaceInternal = unit === 'mi' ? run.avg_pace_min_per_km * 1.609 : run.avg_pace_min_per_km;
+    if (runPaceInternal < fastThreshold && run.distance_km >= 3) {
         insights.push({
             title: 'Flying High 🦅',
             message: "That's a very fast average pace for this distance. Make sure you follow this up with an easy recovery run tomorrow to prevent injury.",
@@ -95,11 +99,12 @@ export function generateRunInsights(run: Run): CoachInsight[] {
         });
     }
 
-    // Fallback if no specific insight generated
     if (insights.length === 0) {
+        const distLabel = unit === 'mi' ? (run.distance_km / 1.609).toFixed(1) : run.distance_km.toFixed(1);
+        const paceFormatted = formatPace(run.avg_pace_min_per_km, unit).replace(/\/.*/, '');
         insights.push({
             title: 'Good Consistent Effort',
-            message: `You knocked out ${run.distance_km.toFixed(1)}km at ${run.avg_pace_min_per_km.toFixed(1)} min/km. Consider adding some interval workouts if you want to increase your speed!`,
+            message: `You knocked out ${distLabel}${unit} at ${paceFormatted} min/${unit}. Consider adding some interval workouts if you want to increase your speed!`,
             type: 'neutral',
         });
     }

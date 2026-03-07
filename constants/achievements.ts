@@ -13,6 +13,8 @@ export interface AchievementCheckStats {
     longestRunKm: number;
     longestStreakDays: number;
     lastRunDistanceKm?: number;
+    lastRunStartTime?: Date;
+    lastRunElevationGain?: number;
 }
 
 export const ACHIEVEMENTS: AchievementDef[] = [
@@ -85,5 +87,99 @@ export const ACHIEVEMENTS: AchievementDef[] = [
         description: 'Run 100 km total',
         icon: '💯',
         check: (s) => s.totalDistanceKm >= 100,
+    },
+    {
+        id: 'early_bird',
+        title: 'Early Bird',
+        description: 'Finish a run before 7 AM',
+        icon: '🌅',
+        check: (s) => (s.lastRunStartTime?.getHours() ?? 12) < 7,
+    },
+    {
+        id: 'night_owl',
+        title: 'Night Owl',
+        description: 'Finish a run after 9 PM',
+        icon: '🦉',
+        check: (s) => (s.lastRunStartTime?.getHours() ?? 0) >= 21,
+    },
+    {
+        id: 'climber',
+        title: 'Climber',
+        description: 'Complete a run with elevation gain (> 20m)',
+        icon: '🏔️',
+        check: (s) => (s.lastRunElevationGain ?? 0) > 20,
+    },
+    {
+        id: 'elite_climber',
+        title: 'Elite Climber',
+        description: 'Complete a run with > 100m elevation gain',
+        icon: '⛰️',
+        check: (s) => (s.lastRunElevationGain ?? 0) > 100,
+    },
+    {
+        id: 'marathon',
+        title: 'Marathoner',
+        description: 'Complete a full marathon (42.2 km)',
+        icon: '👑',
+        check: (s) => (s.lastRunDistanceKm ?? 0) >= 42.195,
+    },
+    {
+        id: 'weekend_warrior',
+        title: 'Weekend Warrior',
+        description: 'Complete a run on a weekend',
+        icon: '⚔️',
+        check: (s) => {
+            const day = s.lastRunStartTime?.getDay();
+            return day === 0 || day === 6;
+        },
+    },
+    {
+        id: 'streak_master',
+        title: 'Streak Master',
+        description: 'Maintain a 14-day running streak',
+        icon: '🔥',
+        check: (s) => s.longestStreakDays >= 14,
+    },
+    {
+        id: 'thirty_runs',
+        title: 'Persistent',
+        description: 'Complete 30 runs',
+        icon: '🛡️',
+        check: (s) => s.totalRuns >= 30,
+    },
+    {
+        id: 'hundred_runs',
+        title: 'Elite Centurion',
+        description: 'Complete 100 runs',
+        icon: '🏛️',
+        check: (s) => s.totalRuns >= 100,
+    },
+    {
+        id: 'two_fifty_km',
+        title: 'Kilometer Crusader',
+        description: 'Run 250 km total',
+        icon: '🛡️',
+        check: (s) => s.totalDistanceKm >= 250,
+    },
+    {
+        id: 'five_hundred_km',
+        title: 'Global Traveler',
+        description: 'Run 500 km total',
+        icon: '🌎',
+        check: (s) => s.totalDistanceKm >= 500,
+    },
+    {
+        id: 'thousand_km',
+        title: 'Earthbound',
+        description: 'Run 1,000 km total',
+        icon: '🚀',
+        check: (s) => s.totalDistanceKm >= 1000,
+    },
+    {
+        id: 'sprint_king',
+        title: 'Sprint King',
+        description: 'Achieve a pace under 4:15 min/km',
+        icon: '🦅',
+        check: (s) => s.bestPaceMinPerKm > 0 && s.bestPaceMinPerKm < 4.25,
     },
 ];

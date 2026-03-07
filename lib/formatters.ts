@@ -44,8 +44,13 @@ export function formatPace(minPerKm: number, unit: PreferredUnit = 'km'): string
 
     const mins = Math.floor(pace);
     const secs = Math.round((pace - mins) * 60);
+
+    // Fix: Handle rounding up to 60 seconds
+    const finalMins = secs === 60 ? mins + 1 : mins;
+    const finalSecs = secs === 60 ? 0 : secs;
+
     const unitLabel = unit === 'mi' ? '/mi' : '/km';
-    return `${mins}:${secs.toString().padStart(2, '0')}${unitLabel}`;
+    return `${finalMins}:${finalSecs.toString().padStart(2, '0')}${unitLabel}`;
 }
 
 /**
@@ -61,7 +66,12 @@ export function formatPaceValue(minPerKm: number, unit: PreferredUnit = 'km'): s
 
     const mins = Math.floor(pace);
     const secs = Math.round((pace - mins) * 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+
+    // Fix: Handle rounding up to 60 seconds
+    const finalMins = secs === 60 ? mins + 1 : mins;
+    const finalSecs = secs === 60 ? 0 : secs;
+
+    return `${finalMins}:${finalSecs.toString().padStart(2, '0')}`;
 }
 
 /**
@@ -134,4 +144,35 @@ export function getGreeting(): string {
  */
 export function convertDistance(km: number, unit: PreferredUnit): number {
     return unit === 'mi' ? km * KM_TO_MI : km;
+}
+
+/**
+ * Calculate Performance Score (0-100).
+ * Based on distance, speed, and consistency.
+ */
+export function calculateRunScore(distanceKm: number, avgPaceMinKm: number, splits: { pace_min_per_km: number }[] = []): number {
+    if (distanceKm <= 0 || avgPaceMinKm <= 0) return 0;
+
+    // Base score for distance (e.g. 5K = 30 points, 21K = 50 points)
+    const distScore = Math.min(50, Math.sqrt(distanceKm) * 10);
+
+    // Speed score (5 min/km is decent, 4 min/km is very fast)
+    // 6 min/km -> 20, 5 min/km -> 30, 4 min/km -> 45
+    const speedScore = Math.max(0, Math.min(50, (10 - avgPaceMinKm) * 8));
+
+    // Consistency score (optional bonus if we have splits)
+    let bonus = 0;
+    if (splits.length > 1) {
+        const paces = splits.map(s => s.pace_min_per_km);
+        const mean = paces.reduce((a, b) => a + b, 0) / paces.length;
+        const variance = paces.reduce((a, b) => a + (b - mean) ** 2, 0) / paces.length;
+        const stdDev = Math.sqrt(variance);
+
+        // Deduct points for high standard deviation (inconsistency)
+        // stdDev of 0.1 min/km is very consistent. 1.0 is very inconsistent.
+        bonus = Math.max(0, 10 - stdDev * 10);
+    }
+
+    const rawScore = distScore + speedScore + bonus;
+    return Math.round(Math.min(100, Math.max(10, rawScore)));
 }

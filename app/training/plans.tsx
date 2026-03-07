@@ -8,17 +8,19 @@ import { useTheme } from '@/context/ThemeContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { usePremium } from '@/context/PremiumContext';
+import { useUserStore } from '@/store/useUserStore';
 import { TRAINING_PLANS } from '@/constants/trainingData';
 import { TrainingPlan, TrainingWeek, TrainingDay } from '@/lib/types';
+import { Ionicons } from '@expo/vector-icons';
 import { FontSize, Spacing, BorderRadius, Shadows } from '@/constants/colors';
 
-const dayIcons: Record<string, string> = {
-    easy: '🟢',
-    tempo: '🟡',
-    interval: '🔴',
-    long: '🔵',
-    rest: '😴',
-    cross: '🏊',
+const dayIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
+    easy: 'leaf',
+    tempo: 'pulse',
+    interval: 'flash',
+    long: 'footsteps',
+    rest: 'bed',
+    cross: 'bicycle',
 };
 
 const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -27,6 +29,8 @@ export default function TrainingPlansScreen() {
     const { colors: Colors } = useTheme();
     const router = useRouter();
     const { isPremium, checkPremiumFeature } = usePremium();
+    const profile = useUserStore((s) => s.profile);
+    const unit = profile?.preferred_unit || 'km';
     const [selectedPlan, setSelectedPlan] = useState<TrainingPlan | null>(null);
     const [selectedWeek, setSelectedWeek] = useState(0);
     const [showWizard, setShowWizard] = useState(false);
@@ -60,21 +64,21 @@ export default function TrainingPlansScreen() {
 
         const newPlan: TrainingPlan = {
             id: `custom-${Date.now()}`,
-            name: `My ${dist}K Plan`,
-            description: `A custom ${weeks}-week schedule for a ${dist}km goal.`,
-            icon: '🎯',
+            name: `My ${dist}${unit.toUpperCase()} Plan`,
+            description: `A custom ${weeks}-week schedule for a ${dist}${unit} goal.`,
+            icon: 'star',
             difficulty: fitnessLevel,
             duration_weeks: weeks,
             weeks: Array.from({ length: weeks }, (_, i) => ({
                 week: i + 1,
                 label: i === weeks - 1 ? 'Race Week' : `Build Phase ${i + 1}`,
                 days: [
-                    { day: 0, type: 'easy', description: `Easy Run (${Math.round(dist * 0.5 * (1 + i / weeks))}km)` },
+                    { day: 0, type: 'easy', description: `Easy Run (${Math.round(dist * 0.5 * (1 + i / weeks))}${unit})` },
                     { day: 1, type: 'rest', description: 'Rest or cross-train' },
-                    { day: 2, type: 'tempo', description: `Tempo Run (${Math.round(dist * 0.7 * (1 + i / weeks))}km at goal pace)` },
+                    { day: 2, type: 'tempo', description: `Tempo Run (${Math.round(dist * 0.7 * (1 + i / weeks))}${unit} at goal pace)` },
                     { day: 3, type: 'rest', description: 'Rest day' },
-                    { day: 4, type: 'easy', description: `Recovery Jog (${Math.round(dist * 0.4)}km)` },
-                    { day: 5, type: 'long', description: `Long Run (${Math.round(dist * (0.8 + (i / weeks) * 0.4))}km)` },
+                    { day: 4, type: 'easy', description: `Recovery Jog (${Math.round(dist * 0.4)}${unit})` },
+                    { day: 5, type: 'long', description: `Long Run (${Math.round(dist * (0.8 + (i / weeks) * 0.4))}${unit})` },
                     { day: 6, type: 'rest', description: 'Complete rest' },
                 ] as TrainingDay[]
             }))
@@ -92,14 +96,17 @@ export default function TrainingPlansScreen() {
                     <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                         <Text style={[styles.backText, { color: Colors.accent }]}>← Back</Text>
                     </TouchableOpacity>
-                    <Text style={[styles.header, { color: Colors.textPrimary }]}>🏋️ Training Plans</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: Spacing.xs }}>
+                        <Ionicons name="barbell" size={32} color={Colors.textPrimary} />
+                        <Text style={[styles.header, { color: Colors.textPrimary, marginBottom: 0 }]}>Training Plans</Text>
+                    </View>
                     <Text style={[styles.subtitle, { color: Colors.textSecondary }]}>Pick a plan and start training with purpose</Text>
 
                     {/* Premium Up-sell */}
                     <TouchableOpacity activeOpacity={0.8} onPress={handleCreateCustom}>
                         <Card variant="glow" glowColor={Colors.premiumGlow} style={styles.planCard}>
                             <View style={styles.planRow}>
-                                <Text style={styles.planIcon}>{isPremium ? '✨' : '🔒'}</Text>
+                                <Ionicons name={isPremium ? 'sparkles' : 'lock-closed'} size={32} color={isPremium ? Colors.premium : Colors.textMuted} />
                                 <View style={styles.planInfo}>
                                     <Text style={[styles.planName, { color: Colors.premium }]}>Create Custom Plan</Text>
                                     <Text style={[styles.planDesc, { color: Colors.textSecondary }]}>Build your own schedule and target paces.</Text>
@@ -113,7 +120,7 @@ export default function TrainingPlansScreen() {
                         <TouchableOpacity key={plan.id} activeOpacity={0.8} onPress={() => { setSelectedPlan(plan); setSelectedWeek(0); }}>
                             <Card variant="glass" style={styles.planCard}>
                                 <View style={styles.planRow}>
-                                    <Text style={styles.planIcon}>{plan.icon}</Text>
+                                    <Ionicons name={plan.icon as any} size={32} color={Colors.accent} />
                                     <View style={styles.planInfo}>
                                         <Text style={[styles.planName, { color: Colors.textPrimary }]}>{plan.name}</Text>
                                         <Text style={[styles.planDesc, { color: Colors.textSecondary }]}>{plan.description}</Text>
@@ -138,7 +145,7 @@ export default function TrainingPlansScreen() {
                     </TouchableOpacity>
 
                     <View style={styles.planHeaderSection}>
-                        <Text style={styles.planHeaderIcon}>{selectedPlan.icon}</Text>
+                        <Ionicons name={selectedPlan.icon as any} size={60} color={Colors.accent} style={{ marginBottom: Spacing.sm }} />
                         <Text style={[styles.planHeaderName, { color: Colors.textPrimary }]}>{selectedPlan.name}</Text>
                         <Text style={[styles.planHeaderDesc, { color: Colors.textSecondary }]}>{selectedPlan.description}</Text>
                     </View>
@@ -165,7 +172,7 @@ export default function TrainingPlansScreen() {
                                 <View style={styles.dayRow}>
                                     <View style={styles.dayLeft}>
                                         <Text style={[styles.dayLabel, { color: Colors.textMuted }]}>{dayLabels[i]}</Text>
-                                        <Text style={styles.dayIcon}>{dayIcons[day.type]}</Text>
+                                        <Ionicons name={dayIcons[day.type]} size={24} color={dayColors[day.type]} />
                                     </View>
                                     <View style={styles.dayContent}>
                                         <Text style={[styles.dayType, { color: dayColors[day.type] }]}>
@@ -173,8 +180,18 @@ export default function TrainingPlansScreen() {
                                         </Text>
                                         <Text style={[styles.dayDesc, { color: Colors.textPrimary }]}>{day.description}</Text>
                                         <View style={styles.dayMeta}>
-                                            {day.distance_km && <Text style={[styles.dayMetaText, { color: Colors.textSecondary }]}>📏 {day.distance_km} km</Text>}
-                                            {day.duration_min && <Text style={[styles.dayMetaText, { color: Colors.textSecondary }]}>⏱ {day.duration_min} min</Text>}
+                                            {day.distance_km && (
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                    <Ionicons name="resize" size={14} color={Colors.textSecondary} />
+                                                    <Text style={[styles.dayMetaText, { color: Colors.textSecondary }]}>{day.distance_km} km</Text>
+                                                </View>
+                                            )}
+                                            {day.duration_min && (
+                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                    <Ionicons name="time" size={14} color={Colors.textSecondary} />
+                                                    <Text style={[styles.dayMetaText, { color: Colors.textSecondary }]}>{day.duration_min} min</Text>
+                                                </View>
+                                            )}
                                         </View>
                                     </View>
                                 </View>
@@ -188,14 +205,17 @@ export default function TrainingPlansScreen() {
             <Modal visible={showWizard} animationType="fade" transparent>
                 <View style={[styles.modalOverlay, { backgroundColor: Colors.overlay }]}>
                     <Card style={styles.wizardContent}>
-                        <Text style={[styles.wizardTitle, { color: Colors.textPrimary }]}>🎯 Plan Generator</Text>
-                        <Text style={[styles.wizardLabel, { color: Colors.textSecondary }]}>What is your target distance (km)?</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: Spacing.sm }}>
+                            <Ionicons name="star" size={28} color={Colors.textPrimary} />
+                            <Text style={[styles.wizardTitle, { color: Colors.textPrimary, marginBottom: 0 }]}>Plan Generator</Text>
+                        </View>
+                        <Text style={[styles.wizardLabel, { color: Colors.textSecondary }]}>What is your target distance ({unit})?</Text>
                         <TextInput
                             style={[styles.wizardInput, { backgroundColor: Colors.surface, borderColor: Colors.border, color: Colors.textPrimary }]}
                             value={targetDistance}
                             onChangeText={setTargetDistance}
                             keyboardType="numeric"
-                            placeholder="e.g. 5, 10, 21.1, 42.2"
+                            placeholder={unit === 'mi' ? "e.g. 3.1, 6.2, 13.1, 26.2" : "e.g. 5, 10, 21.1, 42.2"}
                             placeholderTextColor={Colors.textMuted}
                         />
 

@@ -9,6 +9,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { usePremium } from '@/context/PremiumContext';
+import { Ionicons } from '@expo/vector-icons';
 import { INTERVAL_WORKOUTS } from '@/constants/trainingData';
 import { IntervalWorkout, IntervalStep } from '@/lib/types';
 import { FontSize, Spacing, BorderRadius, Shadows } from '@/constants/colors';
@@ -74,7 +75,7 @@ export default function IntervalsScreen() {
             id: `custom-${Date.now()}`,
             name: buildName,
             description: 'Custom build workout',
-            icon: '⚡',
+            icon: 'flash',
             steps: buildSteps,
             total_duration_seconds: total_duration
         };
@@ -148,14 +149,19 @@ export default function IntervalsScreen() {
                     <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
                         <Text style={[styles.backText, { color: Colors.accent }]}>← Back</Text>
                     </TouchableOpacity>
-                    <Text style={[styles.header, { color: Colors.textPrimary }]}>⚡ Interval Workouts</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: Spacing.xs }}>
+                        <Ionicons name="flash" size={32} color={Colors.textPrimary} />
+                        <Text style={[styles.header, { color: Colors.textPrimary, marginBottom: 0 }]}>Interval Workouts</Text>
+                    </View>
                     <Text style={[styles.subtitle, { color: Colors.textSecondary }]}>Structured speed sessions to boost your fitness</Text>
 
                     {/* Premium Up-sell */}
                     <TouchableOpacity activeOpacity={0.8} onPress={handleCreateCustom}>
                         <Card variant="glow" glowColor={Colors.premiumGlow} style={styles.workoutCard}>
                             <View style={styles.workoutRow}>
-                                <Text style={styles.workoutIcon}>{isPremium ? '✨' : '🔒'}</Text>
+                                <View style={{ width: 40, alignItems: 'center' }}>
+                                    {isPremium ? <Ionicons name="sparkles" size={32} color={Colors.premium} /> : <Ionicons name="lock-closed" size={32} color={Colors.textMuted} />}
+                                </View>
                                 <View style={styles.workoutInfo}>
                                     <Text style={[styles.workoutName, { color: Colors.premium }]}>Custom Builder</Text>
                                     <Text style={[styles.workoutDesc, { color: Colors.textSecondary }]}>Create your own custom interval workouts.</Text>
@@ -169,13 +175,18 @@ export default function IntervalsScreen() {
                         <TouchableOpacity key={w.id} activeOpacity={0.7} onPress={() => startWorkout(w)}>
                             <Card variant="glow" glowColor={Colors.accent} style={styles.workoutCard}>
                                 <View style={styles.workoutRow}>
-                                    <Text style={styles.workoutIcon}>⚡</Text>
+                                    <View style={{ width: 40, alignItems: 'center' }}>
+                                        <Ionicons name="flash" size={32} color={Colors.accent} />
+                                    </View>
                                     <View style={styles.workoutInfo}>
                                         <Text style={[styles.workoutName, { color: Colors.textPrimary }]}>{w.name}</Text>
                                         <Text style={[styles.workoutDesc, { color: Colors.textSecondary }]}>Saved Custom Workout</Text>
-                                        <Text style={[styles.workoutDuration, { color: Colors.textMuted }]}>
-                                            ⏱ {Math.round(w.total_duration_seconds / 60)} min · {w.steps.length} steps
-                                        </Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                            <Ionicons name="time" size={12} color={Colors.textMuted} />
+                                            <Text style={[styles.workoutDuration, { color: Colors.textMuted }]}>
+                                                {Math.round(w.total_duration_seconds / 60)} min · {w.steps.length} steps
+                                            </Text>
+                                        </View>
                                     </View>
                                 </View>
                             </Card>
@@ -186,13 +197,18 @@ export default function IntervalsScreen() {
                         <TouchableOpacity key={w.id} activeOpacity={0.7} onPress={() => startWorkout(w)}>
                             <Card variant="glass" style={styles.workoutCard}>
                                 <View style={styles.workoutRow}>
-                                    <Text style={styles.workoutIcon}>{w.icon}</Text>
+                                    <View style={{ width: 40, alignItems: 'center' }}>
+                                        <Ionicons name={w.icon as any} size={32} color={Colors.textPrimary} />
+                                    </View>
                                     <View style={styles.workoutInfo}>
                                         <Text style={[styles.workoutName, { color: Colors.textPrimary }]}>{w.name}</Text>
                                         <Text style={[styles.workoutDesc, { color: Colors.textSecondary }]}>{w.description}</Text>
-                                        <Text style={[styles.workoutDuration, { color: Colors.textMuted }]}>
-                                            ⏱ {Math.round(w.total_duration_seconds / 60)} min · {w.steps.filter(s => s.type === 'work').length} intervals
-                                        </Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                            <Ionicons name="time" size={12} color={Colors.textMuted} />
+                                            <Text style={[styles.workoutDuration, { color: Colors.textMuted }]}>
+                                                {Math.round(w.total_duration_seconds / 60)} min · {w.steps.filter(s => s.type === 'work').length} intervals
+                                            </Text>
+                                        </View>
                                     </View>
                                 </View>
                                 {/* Mini step preview */}
@@ -252,7 +268,7 @@ export default function IntervalsScreen() {
                     </View>
                 ) : (
                     <View style={styles.bigDisplay}>
-                        <Text style={styles.completeEmoji}>🎉</Text>
+                        <Ionicons name="trophy" size={64} color={Colors.success} style={{ marginBottom: Spacing.md }} />
                         <Text style={[styles.completeTitle, { color: Colors.success }]}>Workout Complete!</Text>
                         <Text style={[styles.completeTime, { color: Colors.textSecondary }]}>Total time: {formatTime(totalElapsed)}</Text>
                     </View>
@@ -292,7 +308,10 @@ export default function IntervalsScreen() {
             <Modal visible={showBuilder} animationType="slide" transparent>
                 <View style={[styles.modalOverlay, { backgroundColor: Colors.overlay }]}>
                     <View style={[styles.builderContent, { backgroundColor: Colors.surface }]}>
-                        <Text style={[styles.builderTitle, { color: Colors.textPrimary }]}>⚡ Custom Builder</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: Spacing.lg }}>
+                            <Ionicons name="hammer" size={24} color={Colors.textPrimary} />
+                            <Text style={[styles.builderTitle, { color: Colors.textPrimary, marginBottom: 0 }]}>Custom Builder</Text>
+                        </View>
 
                         <View style={styles.inputGroup}>
                             <Text style={[styles.builderLabel, { color: Colors.textSecondary }]}>Session Name</Text>

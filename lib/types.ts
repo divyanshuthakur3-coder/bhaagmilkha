@@ -31,6 +31,7 @@ export interface Split {
 export interface Run {
     id: string;
     user_id: string;
+    name: string | null;
     started_at: string;
     ended_at: string;
     distance_km: number;
@@ -39,6 +40,7 @@ export interface Run {
     calories_burned: number;
     route_coordinates: Coordinate[];
     splits?: Split[];
+    steps?: number;
     shoe_id?: string | null;
     weather?: string | null;
     notes: string | null;
@@ -47,7 +49,7 @@ export interface Run {
 export interface Goal {
     id: string;
     user_id: string;
-    type: 'weekly_distance' | 'pace_target' | 'streak';
+    type: 'weekly_distance' | 'pace_target' | 'streak' | 'weekly_time' | 'weekly_run_count';
     target_value: number;
     deadline: string | null;
     is_active: boolean;
@@ -126,40 +128,4 @@ export interface IntervalWorkout {
     total_duration_seconds: number;
 }
 
-// Supabase Database type helper
-export interface Database {
-    public: {
-        Tables: {
-            users: {
-                Row: UserProfile;
-                Insert: Omit<UserProfile, 'id' | 'created_at'> & { id?: string; created_at?: string };
-                Update: Partial<UserProfile>;
-            };
-            runs: {
-                Row: Run;
-                Insert: Omit<Run, 'id'> & { id?: string };
-                Update: Partial<Run>;
-            };
-            goals: {
-                Row: Goal;
-                Insert: Omit<Goal, 'id' | 'created_at'> & { id?: string; created_at?: string };
-                Update: Partial<Goal>;
-            };
-            achievements: {
-                Row: Achievement;
-                Insert: Omit<Achievement, 'id'> & { id?: string };
-                Update: Partial<Achievement>;
-            };
-            weekly_stats: {
-                Row: WeeklyStat;
-                Insert: Omit<WeeklyStat, 'id'> & { id?: string };
-                Update: Partial<WeeklyStat>;
-            };
-            shoes: {
-                Row: Shoe;
-                Insert: Omit<Shoe, 'id' | 'created_at'> & { id?: string; created_at?: string };
-                Update: Partial<Shoe>;
-            };
-        };
-    };
-}
+

@@ -1,7 +1,8 @@
-import React from 'react';
-import { View, Text, StyleSheet, ViewStyle } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ViewStyle, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, FontSize, Spacing, BorderRadius } from '@/constants/colors';
+import { FontSize, Spacing, BorderRadius } from '@/constants/colors';
+import { useTheme } from '@/context/ThemeContext';
 
 interface ProgressBarProps {
     progress: number; // 0 - 100
@@ -15,47 +16,68 @@ interface ProgressBarProps {
 export function ProgressBar({
     progress,
     label,
-    color = Colors.accent,
+    color,
     height = 10,
     showPercentage = true,
     style,
 }: ProgressBarProps) {
+    const { colors: Colors } = useTheme();
     const clampedProgress = Math.min(100, Math.max(0, progress));
     const isComplete = clampedProgress >= 100;
+
+    // Smooth width animation
+    const widthAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        Animated.spring(widthAnim, {
+            toValue: clampedProgress,
+            useNativeDriver: false, // Animating width
+            tension: 20,
+            friction: 7,
+        }).start();
+    }, [clampedProgress]);
+
+    const animatedWidth = widthAnim.interpolate({
+        inputRange: [0, 100],
+        outputRange: ['0%', '100%'],
+    });
 
     const gradientColors = isComplete
         ? ([Colors.gradientSuccessStart, Colors.gradientSuccessEnd] as const)
         : ([Colors.gradientStart, Colors.gradientEnd] as const);
 
+    const barColor = color || (isComplete ? Colors.success : Colors.accent);
+
     return (
         <View style={[styles.container, style]}>
             {label && (
                 <View style={styles.labelRow}>
-                    <Text style={styles.label}>{label}</Text>
+                    <Text style={[styles.label, { color: Colors.textSecondary }]}>{label}</Text>
                     {showPercentage && (
-                        <Text style={[styles.percentage, isComplete && styles.percentageComplete]}>
+                        <Text style={[styles.percentage, { color: barColor }]}>
                             {Math.round(clampedProgress)}%
                         </Text>
                     )}
                 </View>
             )}
-            <View style={[styles.track, { height }]}>
-                <LinearGradient
-                    colors={gradientColors}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={[
-                        styles.fill,
-                        {
-                            width: `${clampedProgress}%`,
-                            height,
-                            borderRadius: height / 2,
-                        },
-                    ]}
-                />
+            <View style={[styles.track, { height, backgroundColor: Colors.surfaceLight }]}>
+                <Animated.View style={{ width: animatedWidth, height: '100%' }}>
+                    <LinearGradient
+                        colors={gradientColors}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={[
+                            styles.fill,
+                            {
+                                height,
+                                borderRadius: height / 2,
+                            },
+                        ]}
+                    />
+                </Animated.View>
             </View>
             {isComplete && (
-                <Text style={styles.completeText}>🎉 Goal achieved!</Text>
+                <Text style={[styles.completeText, { color: Colors.success }]}>🎉 Goal achieved!</Text>
             )}
         </View>
     );
@@ -72,28 +94,21 @@ const styles = StyleSheet.create({
     },
     label: {
         fontSize: FontSize.sm,
-        color: Colors.textSecondary,
         fontWeight: '500',
     },
     percentage: {
         fontSize: FontSize.sm,
-        color: Colors.accent,
         fontWeight: '700',
     },
-    percentageComplete: {
-        color: Colors.success,
-    },
     track: {
-        backgroundColor: Colors.surfaceLight,
-        borderRadius: 5,
+        borderRadius: BorderRadius.full,
         overflow: 'hidden',
     },
     fill: {
-        borderRadius: 5,
+        width: '100%',
     },
     completeText: {
         fontSize: FontSize.xs,
-        color: Colors.success,
         fontWeight: '600',
         textAlign: 'center',
     },

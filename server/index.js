@@ -3,7 +3,7 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const db = require('./db');
-const { generateToken, authMiddleware } = require('./auth');
+const { generateTokens, verifyRefreshToken, authMiddleware } = require('./auth');
 
 const app = express();
 app.use(cors());
@@ -11,14 +11,138 @@ app.use(express.json({ limit: '50mb' }));
 
 const PORT = process.env.PORT || 3001;
 
+// =========== SECURITY HELPERS ===========
+
+// Simple In-Memory Rate Limiter
+const loginAttempts = new Map();
+const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 mins
+const MAX_ATTEMPTS = 5;
+
+function rateLimit(req, res, next) {
+    const ip = req.ip;
+    const now = Date.now();
+    const attempts = loginAttempts.get(ip) || [];
+
+    // Filter old attempts
+    const recentAttempts = attempts.filter(time => now - time < RATE_LIMIT_WINDOW);
+
+    if (recentAttempts.length >= MAX_ATTEMPTS) {
+        return res.status(429).json({ error: 'Too many attempts. Please try again later.' });
+    }
+
+    recentAttempts.push(now);
+    loginAttempts.set(ip, recentAttempts);
+    next();
+}
+
+// Input Sanitization
+function validateAuth(req, res, next) {
+    const { email, password } = req.body;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ error: 'Invalid email format' });
+    }
+    if (!password || password.length < 6) {
+        return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+    next();
+}
+
+// Polyline encoding/decoding for GPS compression
+function encodePolyline(points) {
+    let lastLat = 0;
+    let lastLng = 0;
+    let result = '';
+
+    function encode(value) {
+        let v = value < 0 ? ~(value << 1) : value << 1;
+        while (v >= 0x20) {
+            result += String.fromCharCode((0x20 | (v & 0x1f)) + 63);
+            v >>= 5;
+        }
+        result += String.fromCharCode(v + 63);
+    }
+
+    for (const point of points) {
+        const lat = Math.round(point.latitude * 1e5);
+        const lng = Math.round(point.longitude * 1e5);
+        encode(lat - lastLat);
+        encode(lng - lastLng);
+        lastLat = lat;
+        lastLng = lng;
+    }
+    return result;
+}
+
+function decodePolyline(str) {
+    if (!str) return [];
+    let index = 0, lat = 0, lng = 0, result = [];
+    while (index < str.length) {
+        let b, shift = 0, result_val = 0;
+        do {
+            b = str.charCodeAt(index++) - 63;
+            result_val |= (b & 0x1f) << shift;
+            shift += 5;
+        } while (b >= 0x20);
+        const dlat = ((result_val & 1) ? ~(result_val >> 1) : (result_val >> 1));
+        lat += dlat;
+        shift = 0;
+        result_val = 0;
+        do {
+            b = str.charCodeAt(index++) - 63;
+            result_val |= (b & 0x1f) << shift;
+            shift += 5;
+        } while (b >= 0x20);
+        const dlng = ((result_val & 1) ? ~(result_val >> 1) : (result_val >> 1));
+        lng += dlng;
+        result.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
+    }
+    return result;
+}
+
+function parseCoordinates(data) {
+    if (!data) return [];
+    if (typeof data !== 'string') return data;
+    if (data.startsWith('[') || data.startsWith('{')) {
+        try { return JSON.parse(data); } catch (e) { return []; }
+    }
+    return decodePolyline(data);
+}
+
+const v1Router = express.Router();
+
+// Helper to update weekly_stats
+async function updateWeeklyStats(userId, dateStr, distance, duration, pace) {
+    try {
+        const date = new Date(dateStr);
+        // Get Monday of that week
+        const day = date.getDay();
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(date.setDate(diff));
+        monday.setHours(0, 0, 0, 0);
+        const mondayStr = monday.toISOString().split('T')[0];
+
+        await db.query(`
+            INSERT INTO weekly_stats (id, user_id, week_start, total_distance_km, total_runs, total_duration_seconds, best_pace)
+            VALUES (UUID(), ?, ?, ?, 1, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                total_distance_km = total_distance_km + VALUES(total_distance_km),
+                total_runs = total_runs + 1,
+                total_duration_seconds = total_duration_seconds + VALUES(total_duration_seconds),
+                best_pace = IF(best_pace IS NULL OR VALUES(best_pace) < best_pace, VALUES(best_pace), best_pace)
+        `, [userId, mondayStr, distance, duration, pace]);
+    } catch (err) {
+        console.error('Weekly stats update error:', err);
+    }
+}
+
 // =========== AUTH ROUTES ===========
 
 // Sign Up
-app.post('/auth/signup', async (req, res) => {
+v1Router.post('/auth/signup', rateLimit, validateAuth, async (req, res) => {
     try {
         const { email, password, name } = req.body;
-        if (!email || !password || !name) {
-            return res.status(400).json({ error: 'Email, password, and name are required' });
+        if (!name) {
+            return res.status(400).json({ error: 'Name is required' });
         }
 
         // Check if user exists
@@ -36,10 +160,10 @@ app.post('/auth/signup', async (req, res) => {
             [id, email, passwordHash, name]
         );
 
-        const token = generateToken(id);
+        const { accessToken, refreshToken } = generateTokens(id);
         const [users] = await db.query('SELECT id, email, name, avatar_url, created_at, weekly_goal_km, preferred_unit, weight_kg, height_cm FROM users WHERE id = ?', [id]);
 
-        res.json({ token, user: users[0] });
+        res.json({ token: accessToken, refreshToken, user: users[0] });
     } catch (err) {
         console.error('Signup error:', err);
         res.status(500).json({ error: err.message });
@@ -47,7 +171,7 @@ app.post('/auth/signup', async (req, res) => {
 });
 
 // Login
-app.post('/auth/login', async (req, res) => {
+v1Router.post('/auth/login', rateLimit, async (req, res) => {
     try {
         const { email, password } = req.body;
         if (!email || !password) {
@@ -65,18 +189,38 @@ app.post('/auth/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
 
-        const token = generateToken(user.id);
+        const { accessToken, refreshToken } = generateTokens(user.id);
         delete user.password_hash;
 
-        res.json({ token, user });
+        res.json({ token: accessToken, refreshToken, user });
     } catch (err) {
         console.error('Login error:', err);
         res.status(500).json({ error: err.message });
     }
 });
 
+// Refresh Token
+v1Router.post('/auth/refresh', async (req, res) => {
+    try {
+        const { refreshToken } = req.body;
+        if (!refreshToken) {
+            return res.status(400).json({ error: 'Refresh token required' });
+        }
+
+        const decoded = verifyRefreshToken(refreshToken);
+        if (!decoded) {
+            return res.status(401).json({ error: 'Invalid or expired refresh token' });
+        }
+
+        const { accessToken, refreshToken: newRefreshToken } = generateTokens(decoded.userId);
+        res.json({ token: accessToken, refreshToken: newRefreshToken });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Get current user profile
-app.get('/auth/me', authMiddleware, async (req, res) => {
+v1Router.get('/auth/me', authMiddleware, async (req, res) => {
     try {
         const [users] = await db.query(
             'SELECT id, email, name, avatar_url, created_at, weekly_goal_km, preferred_unit, weight_kg, height_cm FROM users WHERE id = ?',
@@ -92,7 +236,7 @@ app.get('/auth/me', authMiddleware, async (req, res) => {
 });
 
 // Update user profile
-app.put('/auth/profile', authMiddleware, async (req, res) => {
+v1Router.put('/auth/profile', authMiddleware, async (req, res) => {
     try {
         const { name, weekly_goal_km, preferred_unit, weight_kg, height_cm, avatar_url } = req.body;
         const fields = [];
@@ -123,7 +267,7 @@ app.put('/auth/profile', authMiddleware, async (req, res) => {
 });
 
 // Change Password
-app.post('/auth/change-password', authMiddleware, async (req, res) => {
+v1Router.post('/auth/change-password', authMiddleware, async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
         if (!currentPassword || !newPassword) {
@@ -154,7 +298,7 @@ app.post('/auth/change-password', authMiddleware, async (req, res) => {
 });
 
 // Delete Account
-app.delete('/auth/account', authMiddleware, async (req, res) => {
+v1Router.delete('/auth/account', authMiddleware, async (req, res) => {
     try {
         // Delete all user data in order
         await db.query('DELETE FROM achievements WHERE user_id = ?', [req.userId]);
@@ -171,19 +315,20 @@ app.delete('/auth/account', authMiddleware, async (req, res) => {
 
 // =========== RUNS ROUTES ===========
 
-// Get all runs for user
-app.get('/runs', authMiddleware, async (req, res) => {
+// Get all runs for user (with optional pagination)
+v1Router.get('/runs', authMiddleware, async (req, res) => {
     try {
+        const limit = parseInt(req.query.limit) || 50;
+        const offset = parseInt(req.query.offset) || 0;
+
         const [runs] = await db.query(
-            'SELECT * FROM runs WHERE user_id = ? ORDER BY started_at DESC',
-            [req.userId]
+            'SELECT * FROM runs WHERE user_id = ? ORDER BY started_at DESC LIMIT ? OFFSET ?',
+            [req.userId, limit, offset]
         );
         // Parse JSON route_coordinates
         const parsed = runs.map(r => ({
             ...r,
-            route_coordinates: typeof r.route_coordinates === 'string'
-                ? JSON.parse(r.route_coordinates)
-                : r.route_coordinates || [],
+            route_coordinates: parseCoordinates(r.route_coordinates),
         }));
         res.json(parsed);
     } catch (err) {
@@ -192,20 +337,30 @@ app.get('/runs', authMiddleware, async (req, res) => {
 });
 
 // Save a new run
-app.post('/runs', authMiddleware, async (req, res) => {
+v1Router.post('/runs', authMiddleware, async (req, res) => {
     try {
-        const { started_at, ended_at, distance_km, duration_seconds, avg_pace_min_per_km, calories_burned, route_coordinates, notes } = req.body;
+        const { name, started_at, ended_at, distance_km, duration_seconds, avg_pace_min_per_km, calories_burned, route_coordinates, notes, shoe_id } = req.body;
         const id = uuidv4();
 
+        const compressedCoords = Array.isArray(route_coordinates) ? encodePolyline(route_coordinates) : route_coordinates;
+
         await db.query(
-            `INSERT INTO runs (id, user_id, started_at, ended_at, distance_km, duration_seconds, avg_pace_min_per_km, calories_burned, route_coordinates, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, req.userId, started_at, ended_at, distance_km, duration_seconds, avg_pace_min_per_km, calories_burned, JSON.stringify(route_coordinates || []), notes]
+            `INSERT INTO runs (id, user_id, name, started_at, ended_at, distance_km, duration_seconds, avg_pace_min_per_km, calories_burned, route_coordinates, notes, shoe_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, req.userId, name, started_at, ended_at, distance_km, duration_seconds, avg_pace_min_per_km, calories_burned, compressedCoords, notes, shoe_id]
         );
+
+        // Update shoe mileage if shoe_id is provided
+        if (shoe_id) {
+            await db.query('UPDATE shoes SET total_km = total_km + ? WHERE id = ? AND user_id = ?', [distance_km, shoe_id, req.userId]);
+        }
+
+        // Update weekly stats
+        await updateWeeklyStats(req.userId, started_at, distance_km, duration_seconds, avg_pace_min_per_km);
 
         const [runs] = await db.query('SELECT * FROM runs WHERE id = ?', [id]);
         const run = runs[0];
-        run.route_coordinates = typeof run.route_coordinates === 'string' ? JSON.parse(run.route_coordinates) : run.route_coordinates || [];
+        run.route_coordinates = parseCoordinates(run.route_coordinates);
         res.json(run);
     } catch (err) {
         console.error('Save run error:', err);
@@ -214,10 +369,19 @@ app.post('/runs', authMiddleware, async (req, res) => {
 });
 
 // Update run notes
-app.put('/runs/:id', authMiddleware, async (req, res) => {
+v1Router.put('/runs/:id', authMiddleware, async (req, res) => {
     try {
-        const { notes } = req.body;
-        await db.query('UPDATE runs SET notes = ? WHERE id = ? AND user_id = ?', [notes, req.params.id, req.userId]);
+        const { notes, name } = req.body;
+        const fields = [];
+        const values = [];
+
+        if (notes !== undefined) { fields.push('notes = ?'); values.push(notes); }
+        if (name !== undefined) { fields.push('name = ?'); values.push(name); }
+
+        if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+        values.push(req.params.id, req.userId);
+        await db.query(`UPDATE runs SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`, values);
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -225,7 +389,7 @@ app.put('/runs/:id', authMiddleware, async (req, res) => {
 });
 
 // Delete a run
-app.delete('/runs/:id', authMiddleware, async (req, res) => {
+v1Router.delete('/runs/:id', authMiddleware, async (req, res) => {
     try {
         await db.query('DELETE FROM runs WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
         res.json({ success: true });
@@ -236,7 +400,7 @@ app.delete('/runs/:id', authMiddleware, async (req, res) => {
 
 // =========== GOALS ROUTES ===========
 
-app.get('/goals', authMiddleware, async (req, res) => {
+v1Router.get('/goals', authMiddleware, async (req, res) => {
     try {
         const [goals] = await db.query('SELECT * FROM goals WHERE user_id = ? ORDER BY created_at DESC', [req.userId]);
         res.json(goals);
@@ -245,7 +409,7 @@ app.get('/goals', authMiddleware, async (req, res) => {
     }
 });
 
-app.post('/goals', authMiddleware, async (req, res) => {
+v1Router.post('/goals', authMiddleware, async (req, res) => {
     try {
         const { type, target_value, deadline, is_active } = req.body;
         const id = uuidv4();
@@ -260,7 +424,7 @@ app.post('/goals', authMiddleware, async (req, res) => {
     }
 });
 
-app.put('/goals/:id', authMiddleware, async (req, res) => {
+v1Router.put('/goals/:id', authMiddleware, async (req, res) => {
     try {
         const { is_active, target_value, deadline } = req.body;
         const fields = [];
@@ -279,7 +443,7 @@ app.put('/goals/:id', authMiddleware, async (req, res) => {
     }
 });
 
-app.delete('/goals/:id', authMiddleware, async (req, res) => {
+v1Router.delete('/goals/:id', authMiddleware, async (req, res) => {
     try {
         await db.query('DELETE FROM goals WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
         res.json({ success: true });
@@ -290,7 +454,7 @@ app.delete('/goals/:id', authMiddleware, async (req, res) => {
 
 // =========== ACHIEVEMENTS ROUTES ===========
 
-app.get('/achievements', authMiddleware, async (req, res) => {
+v1Router.get('/achievements', authMiddleware, async (req, res) => {
     try {
         const [achievements] = await db.query('SELECT * FROM achievements WHERE user_id = ?', [req.userId]);
         res.json(achievements);
@@ -299,7 +463,7 @@ app.get('/achievements', authMiddleware, async (req, res) => {
     }
 });
 
-app.post('/achievements', authMiddleware, async (req, res) => {
+v1Router.post('/achievements', authMiddleware, async (req, res) => {
     try {
         const { badge_type } = req.body;
         const id = uuidv4();
@@ -315,9 +479,9 @@ app.post('/achievements', authMiddleware, async (req, res) => {
 
 // =========== SHOES ROUTES ===========
 
-app.get('/shoes', authMiddleware, async (req, res) => {
+v1Router.get('/shoes', authMiddleware, async (req, res) => {
     try {
-        const [shoes] = await db.query('SELECT * FROM shoes WHERE user_id = ? ORDER BY created_at DESC', [req.userId]);
+        const [shoes] = await db.query('SELECT * FROM shoes WHERE user_id = ? AND is_active = 1 ORDER BY created_at DESC', [req.userId]);
         res.json(shoes);
     } catch (err) {
         // Auto-create table if it doesn't exist
@@ -342,7 +506,17 @@ app.get('/shoes', authMiddleware, async (req, res) => {
     }
 });
 
-app.post('/shoes', authMiddleware, async (req, res) => {
+v1Router.get('/shoes/:id', authMiddleware, async (req, res) => {
+    try {
+        const [shoes] = await db.query('SELECT * FROM shoes WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
+        if (shoes.length === 0) return res.status(404).json({ error: 'Shoe not found' });
+        res.json(shoes[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+v1Router.post('/shoes', authMiddleware, async (req, res) => {
     try {
         const { name, brand, max_km } = req.body;
         const id = uuidv4();
@@ -357,7 +531,29 @@ app.post('/shoes', authMiddleware, async (req, res) => {
     }
 });
 
-app.put('/shoes/:id', authMiddleware, async (req, res) => {
+v1Router.patch('/shoes/:id', authMiddleware, async (req, res) => {
+    try {
+        const fields = [];
+        const values = [];
+        Object.entries(req.body).forEach(([key, value]) => {
+            if (['name', 'brand', 'max_km', 'is_active', 'total_km'].includes(key)) {
+                fields.push(`${key} = ?`);
+                values.push(value);
+            }
+        });
+
+        if (fields.length > 0) {
+            values.push(req.params.id, req.userId);
+            await db.query(`UPDATE shoes SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`, values);
+        }
+        const [shoes] = await db.query('SELECT * FROM shoes WHERE id = ?', [req.params.id]);
+        res.json(shoes[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+v1Router.put('/shoes/:id', authMiddleware, async (req, res) => {
     try {
         const { name, brand, max_km, is_active, total_km } = req.body;
         const fields = [];
@@ -379,7 +575,7 @@ app.put('/shoes/:id', authMiddleware, async (req, res) => {
     }
 });
 
-app.delete('/shoes/:id', authMiddleware, async (req, res) => {
+v1Router.delete('/shoes/:id', authMiddleware, async (req, res) => {
     try {
         await db.query('DELETE FROM shoes WHERE id = ? AND user_id = ?', [req.params.id, req.userId]);
         res.json({ success: true });
@@ -390,7 +586,7 @@ app.delete('/shoes/:id', authMiddleware, async (req, res) => {
 
 // =========== EXPORT ROUTES ===========
 
-app.get('/export/runs', authMiddleware, async (req, res) => {
+v1Router.get('/export/runs', authMiddleware, async (req, res) => {
     try {
         const [runs] = await db.query(
             'SELECT started_at, ended_at, distance_km, duration_seconds, avg_pace_min_per_km, calories_burned, notes FROM runs WHERE user_id = ? ORDER BY started_at DESC',
@@ -419,7 +615,7 @@ app.get('/export/runs', authMiddleware, async (req, res) => {
 
 // =========== HEALTH CHECK & VERSION ===========
 
-app.get('/status', (req, res) => {
+v1Router.get('/status', (req, res) => {
     res.json({
         status: 'ok',
         minVersion: '1.0.0', // Mandatory update below this version
@@ -427,7 +623,7 @@ app.get('/status', (req, res) => {
     });
 });
 
-app.get('/health', async (req, res) => {
+v1Router.get('/health', async (req, res) => {
     try {
         await db.query('SELECT 1');
         res.json({ status: 'ok', database: 'connected' });
@@ -435,6 +631,10 @@ app.get('/health', async (req, res) => {
         res.status(500).json({ status: 'error', database: 'disconnected' });
     }
 });
+
+app.use('/v1', v1Router);
+// Fallback for current clients (mount at root too) - OPTIONAL but safer for transition
+app.use('/', v1Router);
 
 // =========== START SERVER ===========
 

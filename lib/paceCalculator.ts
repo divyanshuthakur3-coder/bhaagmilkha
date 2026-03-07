@@ -56,6 +56,8 @@ export function calculateCalories(
 
 /**
  * Calculate speed in m/s from two consecutive coordinates.
+/**
+ * Calculate speed in m/s from two consecutive coordinates.
  */
 export function calculateSpeed(a: Coordinate, b: Coordinate): number {
     const distanceKm = haversineDistance(a.lat, a.lng, b.lat, b.lng);
@@ -63,4 +65,27 @@ export function calculateSpeed(a: Coordinate, b: Coordinate): number {
     const timeDiffS = (b.timestamp - a.timestamp) / 1000;
     if (timeDiffS <= 0) return 0;
     return distanceM / timeDiffS;
+}
+
+/**
+ * Calculate cumulative elevation gain in meters.
+ * Only counts upward movements > 2m to filter sensor noise.
+ */
+export function calculateElevationGain(coordinates: Coordinate[]): number {
+    if (coordinates.length < 2) return 0;
+
+    let totalGain = 0;
+    for (let i = 1; i < coordinates.length; i++) {
+        const prev = coordinates[i - 1];
+        const curr = coordinates[i];
+
+        if (prev.altitude !== undefined && curr.altitude !== undefined) {
+            const diff = curr.altitude - prev.altitude;
+            if (diff > 2) { // 2m threshold to filter altitude sensor jitter
+                totalGain += diff;
+            }
+        }
+    }
+
+    return Math.round(totalGain);
 }

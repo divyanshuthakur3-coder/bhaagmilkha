@@ -52,3 +52,48 @@ export function totalDistance(coordinates: Coordinate[]): number {
 export function distanceBetween(a: Coordinate, b: Coordinate): number {
     return haversineDistance(a.lat, a.lng, b.lat, b.lng);
 }
+
+/**
+ * Finds a coordinate at a specific distance along a path.
+ * If distance exceeds path, it returns the last point (or optionally projects).
+ */
+export function getPointAtDistance(coordinates: Coordinate[], targetDistance: number): Coordinate | null {
+    if (coordinates.length === 0) return null;
+    if (targetDistance <= 0) return coordinates[0];
+
+    let currentDistance = 0;
+    for (let i = 1; i < coordinates.length; i++) {
+        const prev = coordinates[i - 1];
+        const curr = coordinates[i];
+        const segDist = distanceBetween(prev, curr);
+
+        if (currentDistance + segDist >= targetDistance) {
+            const fraction = (targetDistance - currentDistance) / segDist;
+            return {
+                lat: prev.lat + (curr.lat - prev.lat) * fraction,
+                lng: prev.lng + (curr.lng - prev.lng) * fraction,
+                timestamp: prev.timestamp + ((curr.timestamp - prev.timestamp) * fraction || 0),
+            };
+        }
+        currentDistance += segDist;
+    }
+
+    // Ghost Leading Logic: If target is ahead of user, project along last heading
+    if (coordinates.length >= 2 && targetDistance > currentDistance) {
+        const last = coordinates[coordinates.length - 1];
+        const prev = coordinates[coordinates.length - 2];
+        const extraDist = targetDistance - currentDistance;
+        const segDist = distanceBetween(prev, last);
+
+        if (segDist > 0) {
+            const fraction = extraDist / segDist;
+            return {
+                lat: last.lat + (last.lat - prev.lat) * fraction,
+                lng: last.lng + (last.lng - prev.lng) * fraction,
+                timestamp: Date.now()
+            };
+        }
+    }
+
+    return coordinates[coordinates.length - 1];
+}
