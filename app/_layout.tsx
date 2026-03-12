@@ -9,12 +9,12 @@ import { AppGuard } from '@/components/AppGuard';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 import { Colors } from '@/constants/colors';
 import { StatusBar } from 'expo-status-bar';
-import ExpoConstants from 'expo-constants';
 import { Alert, Linking, Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import * as SplashScreen from 'expo-splash-screen';
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
+import ExpoConstants from 'expo-constants';
+import '@/hooks/widget-task-handler';
 
 const APP_VERSION = ExpoConstants.expoConfig?.version || '1.0.0';
 

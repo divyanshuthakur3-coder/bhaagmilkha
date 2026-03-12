@@ -56,6 +56,8 @@ export default function RunDetailScreen() {
     const avgComparison = run ? compareToAverage(run, runs) : null;
     const [shoeName, setShoeName] = useState<string | null>(null);
     const [notes, setNotes] = useState(run?.notes || '');
+    const [runName, setRunName] = useState(run?.name || '');
+    const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         if (run?.shoe_id) {
@@ -85,10 +87,26 @@ export default function RunDetailScreen() {
     const handleNotesChange = (text: string) => {
         setNotes(text);
         if (notesTimeout) clearTimeout(notesTimeout);
-        const timeout = setTimeout(() => {
-            updateRun(run.id, { notes: text });
-        }, 1000);
+        setIsSaving(true);
+        const timeout = setTimeout(async () => {
+            await updateRun(run.id, { notes: text });
+            setIsSaving(false);
+        }, 1200);
         setNotesTimeout(timeout);
+    };
+
+    const [nameTimeout, setNameTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
+    
+    // Auto-save name with debounce
+    const handleNameChange = (text: string) => {
+        setRunName(text);
+        if (nameTimeout) clearTimeout(nameTimeout);
+        setIsSaving(true);
+        const timeout = setTimeout(async () => {
+            await updateRun(run.id, { name: text });
+            setIsSaving(false);
+        }, 1200);
+        setNameTimeout(timeout);
     };
 
     const handleDelete = () => {
@@ -124,7 +142,26 @@ export default function RunDetailScreen() {
                         variant="ghost"
                         size="sm"
                     />
-                    <Text style={[styles.date, { color: Colors.textPrimary }]}>{formatDateTime(run.started_at)}</Text>
+                    <View style={{ flex: 1 }}>
+                        <TextInput
+                            style={[styles.nameInput, { color: Colors.textPrimary }]}
+                            value={runName}
+                            onChangeText={handleNameChange}
+                            placeholder={formatDateTime(run.started_at)}
+                            placeholderTextColor={Colors.textMuted}
+                            maxLength={50}
+                        />
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <Text style={[styles.dateSub, { color: Colors.textSecondary }]}>
+                                {formatDateTime(run.started_at)}
+                            </Text>
+                            {isSaving && (
+                                <Text style={{ fontSize: 10, color: Colors.accent, fontWeight: '600' }}>
+                                    • Saving...
+                                </Text>
+                            )}
+                        </View>
+                    </View>
                 </View>
 
                 {/* Map */}
@@ -228,6 +265,7 @@ export default function RunDetailScreen() {
                     </View>
                 </Card>
 
+                {/* Main Stats Grid */}
                 <Card variant="glass" style={[styles.statsCard, { marginTop: Spacing.md }]}>
                     <View style={styles.statsGrid}>
                         <StatBadge
@@ -254,6 +292,36 @@ export default function RunDetailScreen() {
                         ) : null}
                     </View>
                 </Card>
+
+                {/* Weather & Gear */}
+                <View style={{ flexDirection: 'row', gap: Spacing.md }}>
+                    {run.weather && (
+                        <Card variant="glass" style={[styles.gearCard, { flex: 1, marginTop: 0 }]}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                <View style={[styles.gearIcon, { backgroundColor: Colors.warningGlow }]}>
+                                    <Ionicons name="cloudy" size={24} color={Colors.warning} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.gearLabel, { color: Colors.textSecondary }]}>Weather</Text>
+                                    <Text style={[styles.gearValue, { color: Colors.textPrimary }]}>{run.weather}</Text>
+                                </View>
+                            </View>
+                        </Card>
+                    )}
+                    {shoeName && (
+                        <Card variant="glass" style={[styles.gearCard, { flex: 1, marginTop: 0 }]}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                <View style={[styles.gearIcon, { backgroundColor: Colors.accentGlow }]}>
+                                    <Ionicons name="walk" size={24} color={Colors.accent} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.gearLabel, { color: Colors.textSecondary }]}>Gear Used</Text>
+                                    <Text style={[styles.gearValue, { color: Colors.textPrimary }]}>{shoeName}</Text>
+                                </View>
+                            </View>
+                        </Card>
+                    )}
+                </View>
 
                 {/* Splits Analysis (Premium Feature) */}
                 <View style={[styles.section, !isPremium && { opacity: 0.6 }]}>
@@ -356,21 +424,6 @@ export default function RunDetailScreen() {
                     </View>
                 </Modal>
 
-                {/* Gear */}
-                {shoeName && (
-                    <Card variant="glass" style={styles.gearCard}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                            <View style={[styles.gearIcon, { backgroundColor: Colors.accentGlow }]}>
-                                <Ionicons name="walk" size={24} color={Colors.accent} />
-                            </View>
-                            <View>
-                                <Text style={[styles.gearLabel, { color: Colors.textSecondary }]}>Gear Used</Text>
-                                <Text style={[styles.gearValue, { color: Colors.textPrimary }]}>{shoeName}</Text>
-                            </View>
-                        </View>
-                    </Card>
-                )}
-
                 {/* Notes */}
                 <Card variant="glass" style={styles.notesCard}>
                     <Text style={[styles.notesLabel, { color: Colors.textPrimary }]}>Notes</Text>
@@ -395,7 +448,7 @@ export default function RunDetailScreen() {
                     style={styles.deleteButton}
                 />
             </ScrollView>
-        </SafeAreaView >
+        </SafeAreaView>
     );
 }
 
@@ -416,11 +469,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: Spacing.md,
     },
-    date: {
+    dateSub: {
+        fontSize: 12,
+        fontWeight: '500',
+    },
+    nameInput: {
         fontSize: FontSize.lg,
         fontWeight: '800',
         letterSpacing: -0.5,
-        flex: 1,
+        padding: 0,
+        margin: 0,
     },
     statsCard: {
         paddingVertical: Spacing.xl,

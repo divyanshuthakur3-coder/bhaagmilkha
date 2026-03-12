@@ -13,7 +13,8 @@ const runSchema = z.object({
         longitude: z.number()
     }))]),
     notes: z.string().optional().nullable(),
-    shoe_id: z.string().uuid().optional().nullable()
+    shoe_id: z.string().uuid().optional().nullable(),
+    weather: z.string().optional().nullable()
 });
 
 const loginSchema = z.object({

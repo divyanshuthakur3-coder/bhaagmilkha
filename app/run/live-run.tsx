@@ -36,7 +36,9 @@ import { Card } from '@/components/ui/Card';
 import { calculatePace, calculateCalories } from '@/lib/paceCalculator';
 import { formatDistance, formatPace, formatDuration, formatCalories, calculateRunScore } from '@/lib/formatters';
 import { getPointAtDistance, distanceBetween } from '@/lib/haversine';
-import { shoesApi } from '@/lib/api';
+import { runsApi, shoesApi } from '@/lib/api';
+import { updateAppWidgets } from '@/hooks/widget-task-handler';
+import { fetchWeather } from '@/lib/weather';
 import { Shoe, Coordinate } from '@/lib/types';
 import { Colors, FontSize, Spacing, BorderRadius, Shadows } from '@/constants/colors';
 
@@ -361,6 +363,15 @@ export default function LiveRunScreen() {
         const avgPaceValue = calculatePace(distance, timer.elapsedSeconds);
         const caloriesValue = calculateCalories(timer.elapsedSeconds, weightKg);
 
+        let weatherInfo = null;
+        if (storeCoords && storeCoords.length > 0) {
+            const firstCoord = storeCoords[0];
+            const weather = await fetchWeather(firstCoord.lat, firstCoord.lng);
+            if (weather) {
+                weatherInfo = `${weather.condition} ${weather.temperature}°C`;
+            }
+        }
+
         const result = await saveRun({
             user_id: profile.id,
             name: runName.trim() || 'My Run',
@@ -375,6 +386,7 @@ export default function LiveRunScreen() {
             route_coordinates: storeCoords,
             splits: splits,
             shoe_id: selectedShoeId,
+            weather: weatherInfo,
             notes: null,
         });
 

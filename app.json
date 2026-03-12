@@ -83,6 +83,31 @@
           "organization": "runtracker",
           "project": "runtracker-app"
         }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "LastRun",
+              "label": "RunTracker: Last Run",
+              "description": "Quick view of your last run stats",
+              "minWidth": "110dp",
+              "minHeight": "40dp",
+              "updatePeriodMillis": 3600000,
+              "resizeMode": "horizontal|vertical"
+            },
+            {
+              "name": "TodaySteps",
+              "label": "RunTracker: Today's Steps",
+              "description": "Track your daily step progress",
+              "minWidth": "110dp",
+              "minHeight": "40dp",
+              "updatePeriodMillis": 3600000,
+              "resizeMode": "horizontal|vertical"
+            }
+          ]
+        }
       ]
     ],
     "extra": {

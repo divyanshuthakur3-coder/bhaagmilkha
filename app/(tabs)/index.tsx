@@ -19,6 +19,7 @@ import { useGoalStore } from '@/store/useGoalStore';
 import { useShallow } from 'zustand/react/shallow';
 import { usePremium } from '@/context/PremiumContext';
 import { useTheme } from '@/context/ThemeContext';
+import { runsApi } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -28,6 +29,7 @@ import { useLocation } from '@/hooks/useLocation';
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import { Pedometer } from 'expo-sensors';
+import { updateAppWidgets } from '@/hooks/widget-task-handler';
 import { useFocusEffect } from '@react-navigation/native';
 import { FontSize, Spacing, BorderRadius, Shadows } from '@/constants/colors';
 
@@ -92,15 +94,17 @@ export default function HomeScreen() {
                 const available = await Pedometer.isAvailableAsync();
                 if (!available) return;
 
-                const start = new Date();
-                start.setHours(0, 0, 0, 0);
-                const end = new Date();
-
                 try {
-                    const result = await Pedometer.getStepCountAsync(start, end);
+                    const now = new Date();
+                    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    const endOfDay = now;
+
+                    const result = await Pedometer.getStepCountAsync(startOfDay, endOfDay);
                     if (isActive) setTodaySteps(result.steps);
-                } catch (e) {
-                    console.log('Error fetching steps:', e);
+                    // Update Widgets
+                    updateAppWidgets(result.steps);
+                } catch (error) {
+                    console.log('Error fetching steps:', error);
                 }
             };
 

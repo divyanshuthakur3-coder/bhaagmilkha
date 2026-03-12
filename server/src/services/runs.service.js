@@ -101,14 +101,14 @@ module.exports = {
 
     saveRun: async (userId, runData) => {
         const id = uuidv4();
-        const { name, started_at, ended_at, distance_km, duration_seconds, avg_pace_min_per_km, calories_burned, route_coordinates, notes, shoe_id } = runData;
+        const { name, started_at, ended_at, distance_km, duration_seconds, avg_pace_min_per_km, calories_burned, route_coordinates, notes, shoe_id, weather } = runData;
         
         const compressedCoords = Array.isArray(route_coordinates) ? encodePolyline(route_coordinates) : route_coordinates;
 
         await db.query(
-            `INSERT INTO runs (id, user_id, name, started_at, ended_at, distance_km, duration_seconds, avg_pace_min_per_km, calories_burned, route_coordinates, notes, shoe_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, userId, name, started_at, ended_at, distance_km, duration_seconds, avg_pace_min_per_km, calories_burned, compressedCoords, notes, shoe_id]
+            `INSERT INTO runs (id, user_id, name, started_at, ended_at, distance_km, duration_seconds, avg_pace_min_per_km, calories_burned, route_coordinates, notes, shoe_id, weather)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, userId, name, started_at, ended_at, distance_km, duration_seconds, avg_pace_min_per_km, calories_burned, compressedCoords, notes, shoe_id, weather]
         );
 
         if (shoe_id) {
