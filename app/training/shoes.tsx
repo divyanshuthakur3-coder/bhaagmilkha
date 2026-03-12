@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 import { useUserStore } from '@/store/useUserStore';
+import { useShallow } from 'zustand/react/shallow';
 import { shoesApi } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -18,7 +19,7 @@ import { FontSize, Spacing, BorderRadius, Shadows } from '@/constants/colors';
 export default function ShoesScreen() {
     const { colors: Colors } = useTheme();
     const router = useRouter();
-    const unit = useUserStore((s) => s.profile?.preferred_unit || 'km');
+    const unit = useUserStore(useShallow((s) => s.profile?.preferred_unit || 'km'));
     const [shoes, setShoes] = useState<Shoe[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAdd, setShowAdd] = useState(false);

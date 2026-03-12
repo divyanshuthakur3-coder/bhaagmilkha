@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/react-native";
 
 Sentry.init({
-  dsn: "https://your-sentry-dsn.com", // User will need to update this with their real DSN
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN || "https://your-sentry-dsn.com", // User will need to update this with their real DSN
   tracesSampleRate: 1.0,
 });
 

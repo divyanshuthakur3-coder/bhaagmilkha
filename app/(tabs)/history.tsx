@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/ThemeContext';
 import { useRunHistoryStore } from '@/store/useRunHistoryStore';
 import { useUserStore } from '@/store/useUserStore';
+import { useShallow } from 'zustand/react/shallow';
 import { StaticMap } from '@/components/maps/StaticMap';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -26,7 +27,11 @@ import { FontSize, Spacing, BorderRadius } from '@/constants/colors';
 export default function HistoryScreen() {
     const { colors: Colors } = useTheme();
     const router = useRouter();
-    const { runs = [], isLoading, fetchRuns } = useRunHistoryStore();
+    const { runs = [], isLoading, fetchRuns } = useRunHistoryStore(useShallow(s => ({
+        runs: s.runs,
+        isLoading: s.isLoading,
+        fetchRuns: s.fetchRuns,
+    })));
     const unit = useUserStore((s) => s.profile?.preferred_unit || 'km');
     const [refreshing, setRefreshing] = React.useState(false);
     const [searchQuery, setSearchQuery] = React.useState('');
@@ -80,9 +85,15 @@ export default function HistoryScreen() {
             activeOpacity={0.7}
         >
             {/* Map thumbnail (Static for performance) */}
-            {item.route_coordinates && item.route_coordinates.length >= 2 && (
-                <StaticMap coordinates={item.route_coordinates} height={140} />
-            )}
+            <View style={{ height: 140, backgroundColor: Colors.backgroundAlt }}>
+                {item.route_coordinates && item.route_coordinates.length >= 2 ? (
+                    <StaticMap coordinates={item.route_coordinates} height={140} />
+                ) : (
+                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="map-outline" size={32} color={Colors.border} />
+                    </View>
+                )}
+            </View>
 
             <View style={styles.runInfo}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -186,11 +197,15 @@ export default function HistoryScreen() {
                     renderItem={renderRunCard}
                     contentContainerStyle={styles.list}
                     showsVerticalScrollIndicator={false}
-                    initialNumToRender={8}
-                    maxToRenderPerBatch={8}
+                    initialNumToRender={6}
+                    maxToRenderPerBatch={10}
                     windowSize={5}
-                    updateCellsBatchingPeriod={50}
                     removeClippedSubviews={true}
+                    getItemLayout={(_, index) => ({
+                        length: 256, // 240 height + 16 gap
+                        offset: 256 * index,
+                        index,
+                    })}
                     refreshControl={
                         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.accent} />
                     }
@@ -279,6 +294,7 @@ const styles = StyleSheet.create({
         borderRadius: BorderRadius.lg,
         overflow: 'hidden',
         borderWidth: 1,
+        minHeight: 240, // Match getItemLayout (256 - gap)
     },
     runInfo: {
         padding: Spacing.lg,

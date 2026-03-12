@@ -21,6 +21,7 @@ interface ActiveRunState {
     // Warmup timer
     warmupCountdown: number; // seconds remaining, 0 = not active
     warmupActive: boolean;
+    userWeightKg: number;
 
     startRun: () => void;
     pauseRun: () => void;
@@ -31,6 +32,7 @@ interface ActiveRunState {
     updateDuration: (seconds: number) => void;
     setWarmup: (seconds: number) => void;
     tickWarmup: () => boolean; // returns true when warmup finishes
+    setUserWeight: (kg: number) => void;
 
     // Ghost Runner
     ghostPace: number; // min/km
@@ -59,6 +61,7 @@ const initialState = {
     warmupActive: false,
     ghostPace: 5.5, // Default 5:30 min/km
     isGhostEnabled: false,
+    userWeightKg: 70,
 };
 
 export const useActiveRunStore = create<ActiveRunState>((set, get) => ({
@@ -146,9 +149,11 @@ export const useActiveRunStore = create<ActiveRunState>((set, get) => ({
     updateDuration: (seconds: number) => {
         const state = get();
         const avgPace = calculatePace(state.distance, seconds);
-        const cal = calculateCalories(seconds);
+        const cal = calculateCalories(seconds, state.userWeightKg || 70);
         set({ duration: seconds, avgPace, calories: cal });
     },
+
+    setUserWeight: (kg: number) => set({ userWeightKg: kg }),
 
     setWarmup: (seconds: number) => {
         set({ warmupCountdown: seconds, warmupActive: seconds > 0 });

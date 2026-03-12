@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { mmkvStorage } from '@/lib/mmkvStorage';
-import { InteractionManager } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { runOnUI, runOnJS } from 'react-native-reanimated';
 import { runsApi, achievementsApi, shoesApi } from '@/lib/api';
@@ -99,28 +98,32 @@ export const useRunHistoryStore = create<RunHistoryState>()(
             },
 
             deleteRun: async (id: string) => {
+                set({ isLoading: true, error: null });
                 try {
                     if (!id.startsWith('local-')) {
                         await runsApi.delete(id);
                     }
                     set((state) => ({
                         runs: state.runs.filter((r) => r.id !== id),
+                        isLoading: false,
                     }));
                 } catch (err: any) {
-                    set({ error: err.message });
+                    set({ error: err.message, isLoading: false });
                 }
             },
 
             updateRun: async (id, updates) => {
+                set({ isLoading: true, error: null });
                 try {
                     if (!id.startsWith('local-')) {
                         await runsApi.update(id, updates);
                     }
                     set((state) => ({
                         runs: state.runs.map((r) => (r.id === id ? { ...r, ...updates } : r)),
+                        isLoading: false,
                     }));
                 } catch (err: any) {
-                    set({ error: err.message });
+                    set({ error: err.message, isLoading: false });
                 }
             },
 

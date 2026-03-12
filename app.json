@@ -4,11 +4,11 @@
     "slug": "runtracker",
     "version": "1.1.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/icon.webp",
     "userInterfaceStyle": "dark",
     "scheme": "runtracker",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash-icon.webp",
       "resizeMode": "contain",
       "backgroundColor": "#0F0F0F"
     },
@@ -31,9 +31,9 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#0F0F0F",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/android-icon-foreground.webp",
+        "backgroundImage": "./assets/android-icon-background.webp",
+        "monochromeImage": "./assets/android-icon-monochrome.webp"
       },
       "package": "com.runtracker.app",
       "permissions": [
@@ -47,7 +47,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.webp"
     },
     "plugins": [
       "expo-router",

@@ -48,8 +48,13 @@ export const useUserStore = create<UserState>()(
             },
 
             signOut: async () => {
-                await auth.signOut();
-                set({ profile: null, error: null });
+                set({ isLoading: true, error: null });
+                try {
+                    await auth.signOut();
+                    set({ profile: null, error: null, isLoading: false });
+                } catch (err: any) {
+                    set({ error: err.message, isLoading: false });
+                }
             },
         }),
         {

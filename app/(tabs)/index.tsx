@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useUserStore } from '@/store/useUserStore';
 import { useRunHistoryStore } from '@/store/useRunHistoryStore';
 import { useGoalStore } from '@/store/useGoalStore';
+import { useShallow } from 'zustand/react/shallow';
 import { usePremium } from '@/context/PremiumContext';
 import { useTheme } from '@/context/ThemeContext';
 import { Card } from '@/components/ui/Card';
@@ -34,8 +35,15 @@ export default function HomeScreen() {
     const router = useRouter();
     const profile = useUserStore((s) => s.profile);
     const { isPremium } = usePremium();
-    const { runs, isLoading: runsLoading, fetchRuns } = useRunHistoryStore();
-    const { goals, fetchGoals } = useGoalStore();
+    const { runs, isLoading: runsLoading, fetchRuns } = useRunHistoryStore(useShallow(s => ({
+        runs: s.runs,
+        isLoading: s.isLoading,
+        fetchRuns: s.fetchRuns,
+    })));
+    const { goals, fetchGoals } = useGoalStore(useShallow(s => ({
+        goals: s.goals,
+        fetchGoals: s.fetchGoals,
+    })));
     const [refreshing, setRefreshing] = React.useState(false);
     const { requestPermissions, hasPermission } = useLocation();
 

@@ -14,6 +14,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useRunHistoryStore } from '@/store/useRunHistoryStore';
 import { useUserStore } from '@/store/useUserStore';
+import { useShallow } from 'zustand/react/shallow';
 import { usePremium } from '@/context/PremiumContext';
 import { RunMap } from '@/components/maps/RunMap';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -40,7 +41,12 @@ export default function RunDetailScreen() {
     const { colors: Colors } = useTheme();
     const { id } = useLocalSearchParams<{ id: string }>();
     const router = useRouter();
-    const { getRunById, updateRunNotes, deleteRun, runs } = useRunHistoryStore();
+    const { getRunById, updateRun, deleteRun, runs } = useRunHistoryStore(useShallow(s => ({
+        getRunById: s.getRunById,
+        updateRun: s.updateRun,
+        deleteRun: s.deleteRun,
+        runs: s.runs,
+    })));
     const unit = useUserStore((s) => s.profile?.preferred_unit || 'km');
     const { isPremium, checkPremiumFeature } = usePremium();
 
@@ -80,7 +86,7 @@ export default function RunDetailScreen() {
         setNotes(text);
         if (notesTimeout) clearTimeout(notesTimeout);
         const timeout = setTimeout(() => {
-            updateRunNotes(run.id, text);
+            updateRun(run.id, { notes: text });
         }, 1000);
         setNotesTimeout(timeout);
     };

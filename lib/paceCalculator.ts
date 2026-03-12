@@ -56,8 +56,6 @@ export function calculateCalories(
 
 /**
  * Calculate speed in m/s from two consecutive coordinates.
-/**
- * Calculate speed in m/s from two consecutive coordinates.
  */
 export function calculateSpeed(a: Coordinate, b: Coordinate): number {
     const distanceKm = haversineDistance(a.lat, a.lng, b.lat, b.lng);

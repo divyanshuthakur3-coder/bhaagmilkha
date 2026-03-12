@@ -23,6 +23,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useActiveRunStore } from '@/store/useActiveRunStore';
 import { useRunHistoryStore } from '@/store/useRunHistoryStore';
 import { useUserStore } from '@/store/useUserStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useLocation } from '@/hooks/useLocation';
 import { useRunTimer } from '@/hooks/useRunTimer';
 import { useAudioCues } from '@/hooks/useAudioCues';
@@ -69,7 +70,30 @@ export default function LiveRunScreen() {
         setGhostPace,
         toggleGhost,
         reset,
-    } = useActiveRunStore();
+    } = useActiveRunStore(useShallow(s => ({
+        isActive: s.isActive,
+        isPaused: s.isPaused,
+        isAutoPaused: s.isAutoPaused,
+        distance: s.distance,
+        coordinates: s.coordinates,
+        splits: s.splits,
+        warmupCountdown: s.warmupCountdown,
+        warmupActive: s.warmupActive,
+        startRun: s.startRun,
+        pauseRun: s.pauseRun,
+        resumeRun: s.resumeRun,
+        stopRun: s.stopRun,
+        addCoordinate: s.addCoordinate,
+        updateDuration: s.updateDuration,
+        setAutoPaused: s.setAutoPaused,
+        setWarmup: s.setWarmup,
+        tickWarmup: s.tickWarmup,
+        ghostPace: s.ghostPace,
+        isGhostEnabled: s.isGhostEnabled,
+        setGhostPace: s.setGhostPace,
+        toggleGhost: s.toggleGhost,
+        reset: s.reset,
+    })));
 
     const { saveRun } = useRunHistoryStore();
     const location = useLocation();
@@ -103,7 +127,11 @@ export default function LiveRunScreen() {
     const [showSplits, setShowSplits] = useState(false);
     const [shoes, setShoes] = useState<Shoe[]>([]);
     const [selectedShoeId, setSelectedShoeId] = useState<string | null>(null);
-    const countdownScale = useRef(new Animated.Value(1)).current;
+    
+    // Separate animation values
+    const warmupScale = useRef(new Animated.Value(1)).current;
+    const startCountScale = useRef(new Animated.Value(1)).current;
+    const celebrationScale = useRef(new Animated.Value(1)).current;
 
     // Ghost Logic
     const [ghostLocation, setGhostLocation] = useState<Coordinate | null>(null);
@@ -133,14 +161,23 @@ export default function LiveRunScreen() {
 
     // Load shoes
     useEffect(() => {
-        shoesApi.getAll().then((data) => {
+        const controller = new AbortController();
+        shoesApi.getAll(controller.signal).then((data) => {
             if (data) {
                 const active = data.filter((s: Shoe) => s.is_active);
                 setShoes(active);
                 if (active.length > 0) setSelectedShoeId(active[0].id);
             }
         });
+        return () => controller.abort();
     }, []);
+
+    // Sync weight to store
+    useEffect(() => {
+        if (profile?.weight_kg) {
+            useActiveRunStore.getState().setUserWeight(profile.weight_kg);
+        }
+    }, [profile?.weight_kg]);
 
     // Warmup countdown timer
     useEffect(() => {
@@ -150,8 +187,8 @@ export default function LiveRunScreen() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             // Pulse animation
             Animated.sequence([
-                Animated.timing(countdownScale, { toValue: 1.3, duration: 150, useNativeDriver: true }),
-                Animated.timing(countdownScale, { toValue: 1, duration: 150, useNativeDriver: true }),
+                Animated.timing(warmupScale, { toValue: 1.3, duration: 150, useNativeDriver: true }),
+                Animated.timing(warmupScale, { toValue: 1, duration: 150, useNativeDriver: true }),
             ]).start();
             if (finished) {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -189,14 +226,7 @@ export default function LiveRunScreen() {
         }
     }, [timer.elapsedSeconds, isActive]);
 
-    // Sync auto-pause
-    useEffect(() => {
-        if (location.isAutoPaused && isActive && !isPaused) {
-            setAutoPaused(true);
-        } else if (!location.isAutoPaused && isAutoPaused) {
-            setAutoPaused(false);
-        }
-    }, [location.isAutoPaused]);
+
 
     // Audio cues for km splits
     useEffect(() => {
@@ -222,8 +252,8 @@ export default function LiveRunScreen() {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 // Pulse animation
                 Animated.sequence([
-                    Animated.timing(countdownScale, { toValue: 1.5, duration: 100, useNativeDriver: true }),
-                    Animated.timing(countdownScale, { toValue: 1, duration: 200, useNativeDriver: true }),
+                    Animated.timing(startCountScale, { toValue: 1.5, duration: 100, useNativeDriver: true }),
+                    Animated.timing(startCountScale, { toValue: 1, duration: 200, useNativeDriver: true }),
                 ]).start();
                 return prev - 1;
             });
@@ -247,8 +277,8 @@ export default function LiveRunScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setStartCountdown(3);
         Animated.sequence([
-            Animated.timing(countdownScale, { toValue: 1.5, duration: 100, useNativeDriver: true }),
-            Animated.timing(countdownScale, { toValue: 1, duration: 200, useNativeDriver: true }),
+            Animated.timing(startCountScale, { toValue: 1.5, duration: 100, useNativeDriver: true }),
+            Animated.timing(startCountScale, { toValue: 1, duration: 200, useNativeDriver: true }),
         ]).start();
     };
 
@@ -293,10 +323,10 @@ export default function LiveRunScreen() {
                 {
                     text: 'Stop',
                     style: 'destructive',
-                    onPress: () => {
+                    onPress: async () => {
                         stopRun();
                         timer.pause();
-                        location.stopTracking();
+                        await location.stopTracking();
 
                         // Set default name based on time
                         const hour = new Date().getHours();
@@ -389,7 +419,7 @@ export default function LiveRunScreen() {
                     colors={[Colors.gradientStart, Colors.gradientEnd]}
                     style={StyleSheet.absoluteFillObject}
                 />
-                <Animated.Text style={[styles.warmupNumber, { transform: [{ scale: countdownScale }], color: '#FFFFFF' }]}>
+                <Animated.Text style={[styles.warmupNumber, { transform: [{ scale: warmupActive ? warmupScale : startCountScale }], color: '#FFFFFF' }]}>
                     {warmupActive ? warmupCountdown : startCountdown}
                 </Animated.Text>
                 <Text style={styles.warmupLabel}>{warmupActive ? 'Warmup' : 'Get Ready!'}</Text>
@@ -770,7 +800,7 @@ export default function LiveRunScreen() {
                         style={styles.celebrationGlow}
                     />
                     <View style={styles.celebrationContent}>
-                        <Animated.View style={{ transform: [{ scale: countdownScale }] }}>
+                        <Animated.View style={{ transform: [{ scale: celebrationScale }] }}>
                             <Ionicons name="trophy" size={120} color={Colors.premium} />
                         </Animated.View>
 

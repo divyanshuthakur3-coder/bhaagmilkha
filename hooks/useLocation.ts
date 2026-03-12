@@ -287,7 +287,11 @@ export function useLocation(): UseLocationReturn {
         return () => {
             if (watchRef.current) {
                 watchRef.current.remove();
+                watchRef.current = null;
             }
+            // Ensure background task is also stopped on unmount 
+            // if it was left running
+            Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK).catch(() => {});
         };
     }, []);
 

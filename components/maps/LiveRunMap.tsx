@@ -12,7 +12,7 @@ const DETAILED_FREE_STYLE = {
     sources: {
         'osm': {
             type: 'raster',
-            tiles: ['https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'],
+            tiles: [process.env.EXPO_PUBLIC_MAP_TILE_SERVER || 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'],
             tileSize: 256,
             attribution: '© OpenStreetMap, © CARTO'
         }

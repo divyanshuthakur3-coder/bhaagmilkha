@@ -28,7 +28,7 @@ export function AppGuard({ children }: { children: React.ReactNode }) {
 
             // 2. Version Check
             // We fetch the status from our backend
-            const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+            const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || '';
             const response = await fetch(`${apiBaseUrl}/status`);
             const data = await response.json();
 
@@ -90,7 +90,7 @@ export function AppGuard({ children }: { children: React.ReactNode }) {
                 </Text>
                 <TouchableOpacity
                     style={[styles.btn, { backgroundColor: colors.premium }]}
-                    onPress={() => Linking.openURL('https://runtracker.pro/download')}
+                    onPress={() => Linking.openURL(process.env.EXPO_PUBLIC_DOWNLOAD_URL || 'https://runtracker.pro/download')}
                 >
                     <Text style={[styles.btnText, { color: '#0F172A' }]}>Update App Now</Text>
                 </TouchableOpacity>

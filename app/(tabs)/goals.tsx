@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { useGoalStore } from '@/store/useGoalStore';
 import { useRunHistoryStore } from '@/store/useRunHistoryStore';
 import { useUserStore } from '@/store/useUserStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useGoalProgress } from '@/hooks/useGoalProgress';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -37,8 +38,15 @@ import { useTheme } from '@/context/ThemeContext';
 
 export default function GoalsScreen() {
     const { colors: Colors } = useTheme();
-    const { goals, fetchGoals, addGoal } = useGoalStore();
-    const { runs = [], fetchRuns } = useRunHistoryStore();
+    const { goals, fetchGoals, addGoal } = useGoalStore(useShallow(s => ({
+        goals: s.goals,
+        fetchGoals: s.fetchGoals,
+        addGoal: s.addGoal,
+    })));
+    const { runs = [], fetchRuns } = useRunHistoryStore(useShallow(s => ({
+        runs: s.runs,
+        fetchRuns: s.fetchRuns,
+    })));
     const profile = useUserStore((s) => s.profile);
     const unit = profile?.preferred_unit || 'km';
     const [showAddModal, setShowAddModal] = useState(false);

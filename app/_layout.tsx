@@ -102,7 +102,7 @@ function InnerLayout() {
                     Alert.alert(
                         'Update Required',
                         'A mandatory update is required to continue using the app.',
-                        [{ text: 'Update Now', onPress: () => Linking.openURL('https://runtracker.app/update') }],
+                        [{ text: 'Update Now', onPress: () => Linking.openURL(process.env.EXPO_PUBLIC_UPDATE_URL || 'https://runtracker.app/update') }],
                         { cancelable: false }
                     );
                 }

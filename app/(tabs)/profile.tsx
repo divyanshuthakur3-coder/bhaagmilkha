@@ -15,6 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useUserStore } from '@/store/useUserStore';
 import { useRunHistoryStore } from '@/store/useRunHistoryStore';
+import { useShallow } from 'zustand/react/shallow';
 import { usePremium } from '@/context/PremiumContext';
 import { useTheme } from '@/context/ThemeContext';
 import { achievementsApi, auth } from '@/lib/api';
@@ -28,8 +29,14 @@ export default function ProfileScreen() {
     const { theme, colors: Colors } = useTheme();
     const router = useRouter();
     const { isPremium, checkPremiumFeature } = usePremium();
-    const { profile, updateProfile, signOut } = useUserStore();
-    const { runs = [] } = useRunHistoryStore();
+    const { profile, updateProfile, signOut } = useUserStore(useShallow(s => ({
+        profile: s.profile,
+        updateProfile: s.updateProfile,
+        signOut: s.signOut,
+    })));
+    const { runs = [] } = useRunHistoryStore(useShallow(s => ({
+        runs: s.runs,
+    })));
     const [name, setName] = useState(profile?.name || '');
     const [weeklyGoal, setWeeklyGoal] = useState(String(profile?.weekly_goal_km || 20));
     const [weight, setWeight] = useState(String(profile?.weight_kg || 70));

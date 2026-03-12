@@ -12,6 +12,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useRunHistoryStore } from '@/store/useRunHistoryStore';
 import { useUserStore } from '@/store/useUserStore';
 import { usePremium } from '@/context/PremiumContext';
+import { useShallow } from 'zustand/react/shallow';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
 import { StatBadge } from '@/components/ui/StatBadge';
@@ -31,7 +32,11 @@ import { FontSize, Spacing } from '@/constants/colors';
 export default function AnalyticsScreen() {
     const { colors: Colors } = useTheme();
     const router = useRouter();
-    const { runs = [], fetchRuns, isLoading } = useRunHistoryStore();
+    const { runs = [], fetchRuns, isLoading } = useRunHistoryStore(useShallow(s => ({
+        runs: s.runs,
+        fetchRuns: s.fetchRuns,
+        isLoading: s.isLoading
+    })));
     const unit = useUserStore((s) => s.profile?.preferred_unit || 'km');
     const { isPremium, checkPremiumFeature } = usePremium();
     const [refreshing, setRefreshing] = React.useState(false);

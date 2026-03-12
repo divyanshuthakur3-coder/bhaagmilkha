@@ -13,7 +13,7 @@ function getDevHost(): string | null {
 
 function getApiBaseUrl(): string {
     // Allow overriding for tunnel / production
-    const envUrl = (process?.env?.EXPO_PUBLIC_API_BASE_URL || 'https://runtracker-api-9pe5.onrender.com').trim();
+    const envUrl = (process?.env?.EXPO_PUBLIC_API_BASE_URL || '').trim();
     if (envUrl) return envUrl.replace(/\/$/, '');
 
     // Defaults for local development
@@ -92,7 +92,7 @@ async function removeTokens(): Promise<void> {
 }
 
 // Unified fetch helper
-async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
+async function apiFetch(path: string, options: RequestInit = {}, _retryCount = 0): Promise<any> {
     const token = await getToken();
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -145,8 +145,14 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
     const data = await response.json();
 
     if (!response.ok) {
-        // Silent Refresh Logic
+        // Silent Refresh Logic (Max 3 retries)
         if (response.status === 401 && data.code === 'TOKEN_EXPIRED' && !path.includes('/auth/refresh')) {
+            if (_retryCount >= 3) {
+                console.warn('Max refresh retries reached. Logging out...');
+                await removeTokens();
+                throw new Error('Session expired. Please log in again.');
+            }
+
             const refreshToken = await getRefreshToken();
             if (refreshToken) {
                 try {
@@ -158,11 +164,18 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
                     if (refreshRes.ok) {
                         const refreshData = await refreshRes.json();
                         await setTokens(refreshData.token, refreshData.refreshToken);
-                        // Retry original request with new token
-                        return apiFetch(path, options);
+                        // Retry original request with new token and incremented retry count
+                        return apiFetch(path, options, _retryCount + 1);
+                    } else {
+                        // Refresh token itself is invalid or expired
+                        console.warn('Refresh token rejected. Logging out...');
+                        await removeTokens();
+                        throw new Error('Session expired. Please log in again.');
                     }
                 } catch (err) {
                     console.warn('Silent refresh failed', err);
+                    await removeTokens();
+                    throw new Error('Session expired. Please log in again.');
                 }
             }
         }

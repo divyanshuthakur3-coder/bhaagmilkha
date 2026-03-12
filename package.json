@@ -48,7 +48,9 @@
   "devDependencies": {
     "@types/jest": "^29.5.14",
     "@types/react": "~19.0.10",
+    "babel-plugin-transform-remove-console": "^6.9.4",
     "jest": "^29.7.0",
+    "sharp-cli": "^5.2.0",
     "ts-jest": "^29.4.6",
     "typescript": "~5.8.3"
   },

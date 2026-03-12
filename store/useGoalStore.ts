@@ -47,35 +47,41 @@ export const useGoalStore = create<GoalState>((set, get) => ({
     },
 
     updateGoal: async (id, updates) => {
+        set({ isLoading: true, error: null });
         try {
             await goalsApi.update(id, updates);
             set((state) => ({
                 goals: state.goals.map((g) => (g.id === id ? { ...g, ...updates } : g)),
+                isLoading: false,
             }));
         } catch (err: any) {
-            set({ error: err.message });
+            set({ error: err.message, isLoading: false });
         }
     },
 
     deleteGoal: async (id) => {
+        set({ isLoading: true, error: null });
         try {
             await goalsApi.delete(id);
             set((state) => ({
                 goals: state.goals.filter((g) => g.id !== id),
+                isLoading: false,
             }));
         } catch (err: any) {
-            set({ error: err.message });
+            set({ error: err.message, isLoading: false });
         }
     },
 
     deactivateGoal: async (id) => {
+        set({ isLoading: true, error: null });
         try {
             await goalsApi.update(id, { is_active: false });
             set((state) => ({
                 goals: state.goals.map((g) => (g.id === id ? { ...g, is_active: false } : g)),
+                isLoading: false,
             }));
         } catch (err: any) {
-            set({ error: err.message });
+            set({ error: err.message, isLoading: false });
         }
     },
 
