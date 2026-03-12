@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Pedometer } from 'expo-sensors';
 
-export function useStepCadence(isActive: boolean, isPaused: boolean) {
+export function useStepCadence(isActive: boolean, isPaused: boolean, distanceKm?: number) {
     const [cadence, setCadence] = useState(0); // steps per minute
     const [totalSteps, setTotalSteps] = useState(0);
     const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
@@ -10,6 +10,11 @@ export function useStepCadence(isActive: boolean, isPaused: boolean) {
     const lastSteps = useRef(0);
     const lastUpdateTime = useRef(Date.now());
     const cadenceHistory = useRef<number[]>([]);
+    
+    // Fix: Accumulation across pauses
+    const stepsBeforePause = useRef(0);
+    const latestTotalSteps = useRef(0);
+    const isFirstReading = useRef(true);
 
     useEffect(() => {
         Pedometer.isAvailableAsync().then(
@@ -21,9 +26,21 @@ export function useStepCadence(isActive: boolean, isPaused: boolean) {
         );
     }, []);
 
+    // Reset steps when run is finished
+    useEffect(() => {
+        if (!isActive) {
+            stepsBeforePause.current = 0;
+            latestTotalSteps.current = 0;
+            setTotalSteps(0);
+        }
+    }, [isActive]);
+
     useEffect(() => {
         if (!isActive || isPaused || !isAvailable) {
             setCadence(0);
+            if (isPaused) {
+                stepsBeforePause.current = latestTotalSteps.current;
+            }
             return;
         }
 
@@ -31,18 +48,28 @@ export function useStepCadence(isActive: boolean, isPaused: boolean) {
 
         lastSteps.current = 0;
         lastUpdateTime.current = Date.now();
-        setTotalSteps(0);
         cadenceHistory.current = [];
+        isFirstReading.current = true;
 
         // Start watching steps
         subscription = Pedometer.watchStepCount(result => {
             const now = Date.now();
             const timeDiffSec = (now - lastUpdateTime.current) / 1000;
 
-            setTotalSteps(result.steps);
+            const accumulated = stepsBeforePause.current + result.steps;
+            setTotalSteps(accumulated);
+            latestTotalSteps.current = accumulated;
+
+            // Fix: Skip first reading to avoid cadence spike
+            if (isFirstReading.current) {
+                lastSteps.current = result.steps;
+                lastUpdateTime.current = now;
+                isFirstReading.current = false;
+                return;
+            }
 
             // Calculate instantaneous SPM every ~3 seconds to avoid erratic values
-            if (timeDiffSec >= 3) {
+            if (timeDiffSec >= 2.5) {
                 const stepsDiff = result.steps - lastSteps.current;
 
                 // SPM = (steps / seconds) * 60
@@ -50,7 +77,7 @@ export function useStepCadence(isActive: boolean, isPaused: boolean) {
 
                 cadenceHistory.current.push(instCadence);
                 if (cadenceHistory.current.length > 4) {
-                    cadenceHistory.current.shift(); // Keep last 4 readings (approx 12 seconds)
+                    cadenceHistory.current.shift(); // Keep last 4 readings (approx 10-12 seconds)
                 }
 
                 const avgCadence = cadenceHistory.current.reduce((a, b) => a + b, 0) / cadenceHistory.current.length;
@@ -78,5 +105,10 @@ export function useStepCadence(isActive: boolean, isPaused: boolean) {
         };
     }, [isActive, isPaused, isAvailable]);
 
-    return { cadence, totalSteps, isAvailable };
+    // Calculate stride length (cm)
+    const stepLengthCm = (totalSteps > 0 && distanceKm && distanceKm > 0) 
+        ? Math.round((distanceKm * 1000 * 100) / totalSteps) 
+        : 0;
+
+    return { cadence, totalSteps, isAvailable, stepLengthCm };
 }

@@ -28,6 +28,7 @@ import { useLocation } from '@/hooks/useLocation';
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import { Pedometer } from 'expo-sensors';
+import { useFocusEffect } from '@react-navigation/native';
 import { FontSize, Spacing, BorderRadius, Shadows } from '@/constants/colors';
 
 export default function HomeScreen() {
@@ -46,6 +47,7 @@ export default function HomeScreen() {
     })));
     const [refreshing, setRefreshing] = React.useState(false);
     const { requestPermissions, hasPermission } = useLocation();
+    const [todaySteps, setTodaySteps] = React.useState(0);
 
     const unit = profile?.preferred_unit || 'km';
 
@@ -81,6 +83,31 @@ export default function HomeScreen() {
             ])
         ).start();
     }, []);
+
+    useFocusEffect(
+        React.useCallback(() => {
+            let isActive = true;
+
+            const fetchTodaySteps = async () => {
+                const available = await Pedometer.isAvailableAsync();
+                if (!available) return;
+
+                const start = new Date();
+                start.setHours(0, 0, 0, 0);
+                const end = new Date();
+
+                try {
+                    const result = await Pedometer.getStepCountAsync(start, end);
+                    if (isActive) setTodaySteps(result.steps);
+                } catch (e) {
+                    console.log('Error fetching steps:', e);
+                }
+            };
+
+            fetchTodaySteps();
+            return () => { isActive = false; };
+        }, [])
+    );
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -233,6 +260,15 @@ export default function HomeScreen() {
                                 {Math.round(weeklyStats.totalCalories)}
                             </Text>
                             <Text style={[styles.miniCardLabel, { color: Colors.textMuted }]}>Kcal</Text>
+                        </View>
+                    </Card>
+                    <Card variant="glass" style={styles.miniCard}>
+                        <Ionicons name="footsteps" size={32} color={Colors.success} />
+                        <View style={styles.miniCardTextContainer}>
+                            <Text style={[styles.miniCardValue, { color: Colors.textPrimary }]}>
+                                {todaySteps.toLocaleString()}
+                            </Text>
+                            <Text style={[styles.miniCardLabel, { color: Colors.textMuted }]}>Steps Today</Text>
                         </View>
                     </Card>
                 </View>

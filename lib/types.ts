@@ -41,6 +41,7 @@ export interface Run {
     route_coordinates: Coordinate[];
     splits?: Split[];
     steps?: number;
+    step_length_cm?: number | null;
     shoe_id?: string | null;
     weather?: string | null;
     notes: string | null;

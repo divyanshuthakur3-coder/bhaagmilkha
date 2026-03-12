@@ -99,7 +99,7 @@ export default function LiveRunScreen() {
     const location = useLocation();
     const timer = useRunTimer();
     const audioCues = useAudioCues();
-    const { cadence, totalSteps } = useStepCadence(isActive, isPaused || isAutoPaused);
+    const { cadence, totalSteps, stepLengthCm } = useStepCadence(isActive, isPaused || isAutoPaused, distance);
 
     const [showSummary, setShowSummary] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -236,6 +236,17 @@ export default function LiveRunScreen() {
         }
     }, [distance, isActive, isPaused, timer.elapsedSeconds]);
 
+    // Cadence Alert (Low SPM < 150)
+    useEffect(() => {
+        if (!isActive || isPaused || isAutoPaused || !cadence || cadence >= 150) return;
+
+        const interval = setInterval(() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }, 30000); // 30 seconds
+
+        return () => clearInterval(interval);
+    }, [isActive, isPaused, isAutoPaused, cadence]);
+
     const [startCountdown, setStartCountdown] = useState(0);
 
     // Run start countdown logic
@@ -360,6 +371,7 @@ export default function LiveRunScreen() {
             avg_pace_min_per_km: avgPaceValue,
             calories_burned: caloriesValue,
             steps: totalSteps,
+            step_length_cm: stepLengthCm || null,
             route_coordinates: storeCoords,
             splits: splits,
             shoe_id: selectedShoeId,
@@ -543,7 +555,23 @@ export default function LiveRunScreen() {
                                 {cadence || 0}
                             </Text>
                             <Text style={[styles.statLabel, { color: Colors.textMuted }]}>SPM</Text>
+                            {isActive && cadence > 0 && cadence < 150 && (
+                                <Text style={{ fontSize: 10, color: Colors.warning, fontWeight: '700', position: 'absolute', bottom: -12 }}>
+                                    INCREASE
+                                </Text>
+                            )}
                         </View>
+                        {stepLengthCm > 0 && (
+                            <View style={[styles.statItem, { borderLeftWidth: 1, borderColor: Colors.border, paddingLeft: Spacing.md }]}>
+                                <Text style={[styles.statValue, { color: Colors.textPrimary }]}>
+                                    {stepLengthCm}
+                                </Text>
+                                <Text style={[styles.statLabel, { color: Colors.textMuted }]}>CM</Text>
+                                <Text style={{ fontSize: 10, color: Colors.textMuted, fontWeight: '700', position: 'absolute', bottom: -12 }}>
+                                    STRIDE
+                                </Text>
+                            </View>
+                        )}
                     </View>
                 </View>
 
@@ -697,6 +725,7 @@ export default function LiveRunScreen() {
                             <View style={[styles.summaryStats, { marginTop: Spacing.md }]}>
                                 <StatBadge icon="flame" value={`${calories}`} label="kcal" color={Colors.error} />
                                 <StatBadge icon="footsteps" value={`${totalSteps}`} label="Steps" color={Colors.accentGlow} />
+                                <StatBadge icon="expand-outline" value={stepLengthCm > 0 ? `${stepLengthCm}cm` : '--'} label="Stride" color={Colors.success} />
                                 <StatBadge icon="star" value={`${calculateRunScore(distance, avgPace, splits)}`} label="Score" color={Colors.premium} />
                             </View>
 
