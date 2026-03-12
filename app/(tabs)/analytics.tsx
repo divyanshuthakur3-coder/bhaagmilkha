@@ -226,6 +226,10 @@ export default function AnalyticsScreen() {
         const bestPace = Math.min(...validRuns.map(r => r.avg_pace_min_per_km));
         const avgPace = validRuns.reduce((sum, r) => sum + r.avg_pace_min_per_km, 0) / validRuns.length;
 
+        // Use recent avg pace (last 5 runs) for more realistic predictions
+        const recentValidRuns = validRuns.slice(0, 5);
+        const recentAvgPace = recentValidRuns.reduce((sum, r) => sum + r.avg_pace_min_per_km, 0) / recentValidRuns.length;
+
         // Pace Consistency (0-100%)
         const variance = validRuns.reduce((sum, r) => sum + Math.pow(r.avg_pace_min_per_km - avgPace, 2), 0) / validRuns.length;
         const consistency = Math.max(0, Math.min(100, 100 - (variance * 20)));
@@ -260,10 +264,10 @@ export default function AnalyticsScreen() {
             scoreTrend,
             intensityData,
             predictions: {
-                '5K': formatDuration(bestPace * 5 * 60),
-                '10K': formatDuration(bestPace * 10 * 60 * 1.06),
-                'Half': formatDuration(bestPace * 21.1 * 60 * 1.12),
-                'Full': formatDuration(bestPace * 42.2 * 60 * 1.2),
+                '5K': formatDuration(recentAvgPace * 5 * 60),
+                '10K': formatDuration(recentAvgPace * 10 * 60 * 1.06),
+                'Half': formatDuration(recentAvgPace * 21.1 * 60 * 1.12),
+                'Full': formatDuration(recentAvgPace * 42.2 * 60 * 1.2),
             }
         };
     }, [runs, Colors]);

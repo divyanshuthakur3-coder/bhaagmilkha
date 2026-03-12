@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import {
     View,
     Text,
@@ -39,11 +40,12 @@ import { useTheme } from '@/context/ThemeContext';
 
 export default function GoalsScreen() {
     const { colors: Colors } = useTheme();
-    const { goals, fetchGoals, addGoal, deleteGoal } = useGoalStore(useShallow(s => ({
+    const { goals, fetchGoals, addGoal, deleteGoal, deactivateGoal } = useGoalStore(useShallow(s => ({
         goals: s.goals,
         fetchGoals: s.fetchGoals,
         addGoal: s.addGoal,
         deleteGoal: s.deleteGoal,
+        deactivateGoal: s.deactivateGoal,
     })));
     const { runs = [], fetchRuns } = useRunHistoryStore(useShallow(s => ({
         runs: s.runs,
@@ -55,6 +57,8 @@ export default function GoalsScreen() {
     const [selectedType, setSelectedType] = useState<GoalType>('weekly_distance');
     const [targetValue, setTargetValue] = useState('');
     const [refreshing, setRefreshing] = useState(false);
+    const [deadline, setDeadline] = useState<Date | null>(null);
+    const [showDatePicker, setShowDatePicker] = useState(false);
 
     const goalProgress = useGoalProgress(goals, runs);
 
@@ -126,12 +130,13 @@ export default function GoalsScreen() {
             user_id: profile.id,
             type: selectedType,
             target_value: parseFloat(targetValue),
-            deadline: null,
+            deadline: deadline ? deadline.toISOString() : null,
             is_active: true,
         });
 
         setShowAddModal(false);
         setTargetValue('');
+        setDeadline(null);
     };
 
     const handleDeleteGoal = (id: string) => {
@@ -253,6 +258,11 @@ export default function GoalsScreen() {
                                         <Text style={[styles.goalTargetText, { color: Colors.textMuted }]}>
                                             Target: {gp.goal.target_value} {GOAL_TYPES.find((t) => t.type === gp.goal.type)?.unit}
                                         </Text>
+                                        {gp.goal.deadline && (
+                                            <Text style={[styles.goalTargetText, { color: Colors.warning, marginTop: 2 }]}>
+                                                📅 {new Date(gp.goal.deadline).toLocaleDateString()}
+                                            </Text>
+                                        )}
                                     </View>
                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
                                         {gp.isCompleted && <Ionicons name="checkmark-circle" size={24} color={Colors.success} />}
@@ -266,6 +276,15 @@ export default function GoalsScreen() {
                                     label={gp.displayLabel}
                                     color={gp.isCompleted ? Colors.success : Colors.accent}
                                 />
+                                {gp.isCompleted && (
+                                    <TouchableOpacity
+                                        style={[styles.markDoneButton, { backgroundColor: Colors.successGlow, borderColor: Colors.success }]}
+                                        onPress={() => deactivateGoal(gp.goal.id)}
+                                    >
+                                        <Ionicons name="checkmark-done" size={16} color={Colors.success} />
+                                        <Text style={{ color: Colors.success, fontWeight: '700', fontSize: 12 }}>Mark Done ✓</Text>
+                                    </TouchableOpacity>
+                                )}
                             </Card>
                         ))}
                     </View>
@@ -386,10 +405,36 @@ export default function GoalsScreen() {
                             keyboardType="numeric"
                         />
 
+                        <TouchableOpacity
+                            style={[styles.deadlineButton, { borderColor: Colors.border, backgroundColor: Colors.surfaceLight }]}
+                            onPress={() => setShowDatePicker(true)}
+                        >
+                            <Ionicons name="calendar-outline" size={18} color={Colors.textSecondary} />
+                            <Text style={{ color: deadline ? Colors.textPrimary : Colors.textMuted, fontWeight: '600' }}>
+                                {deadline ? `Deadline: ${deadline.toLocaleDateString()}` : 'Set Deadline (Optional)'}
+                            </Text>
+                            {deadline && (
+                                <TouchableOpacity onPress={() => setDeadline(null)} hitSlop={8}>
+                                    <Ionicons name="close-circle" size={18} color={Colors.textMuted} />
+                                </TouchableOpacity>
+                            )}
+                        </TouchableOpacity>
+                        {showDatePicker && (
+                            <DateTimePicker
+                                value={deadline || new Date()}
+                                mode="date"
+                                minimumDate={new Date()}
+                                onChange={(event: any, date?: Date) => {
+                                    setShowDatePicker(Platform.OS === 'ios');
+                                    if (date) setDeadline(date);
+                                }}
+                            />
+                        )}
+
                         <View style={styles.modalActions}>
                             <Button
                                 title="Cancel"
-                                onPress={() => setShowAddModal(false)}
+                                onPress={() => { setShowAddModal(false); setDeadline(null); }}
                                 variant="ghost"
                             />
                             <Button
@@ -550,7 +595,7 @@ const styles = StyleSheet.create({
         fontSize: FontSize.lg,
         fontWeight: '600',
         borderWidth: 1,
-        marginBottom: Spacing.xl,
+        marginBottom: Spacing.lg,
     },
     modalActions: {
         flexDirection: 'row',
@@ -592,5 +637,24 @@ const styles = StyleSheet.create({
         fontSize: FontSize.xs,
         textAlign: 'center',
         fontWeight: '500',
+    },
+    markDoneButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: Spacing.xs,
+        marginTop: Spacing.md,
+        paddingVertical: Spacing.sm,
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+    },
+    deadlineButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.sm,
+        padding: Spacing.md,
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+        marginBottom: Spacing.xl,
     },
 });

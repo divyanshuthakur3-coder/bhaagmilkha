@@ -10,6 +10,7 @@ import { enqueue } from '@/lib/offlineQueue';
 import { ACHIEVEMENTS, AchievementCheckStats } from '@/constants/achievements';
 import { calculateTRIMP, detectPersonalRecords } from '@/lib/performance';
 import { calculateElevationGain } from '@/lib/paceCalculator';
+import { checkAndAwardAchievements } from '@/lib/achievementChecker';
 import { useGoalStore } from './useGoalStore';
 
 interface RunHistoryState {
@@ -70,7 +71,7 @@ export const useRunHistoryStore = create<RunHistoryState>()(
                         // Check achievements, goals, and shoe life after saving
                         const [earnedPrs] = await Promise.all([
                             detectPersonalRecords(savedRun as Run, get().runs),
-                            checkAchievements(savedRun as Run, get().runs),
+                            checkAndAwardAchievements(savedRun as Run, get().runs),
                             useGoalStore.getState().checkAndNotifyCompletion(get().runs),
                             checkShoeLife(savedRun as Run),
                         ]);
@@ -89,7 +90,7 @@ export const useRunHistoryStore = create<RunHistoryState>()(
                         }));
                         // Check goals even for local runs
                         useGoalStore.getState().checkAndNotifyCompletion(get().runs);
-                        return { run: localRun, prs: [] }; // No PRs for local saves usually
+                        return { run: localRun, prs: [] };
                     }
                 } catch (err: any) {
                     set({ error: err.message, isLoading: false });
@@ -141,64 +142,10 @@ export const useRunHistoryStore = create<RunHistoryState>()(
         {
             name: 'run-history-storage',
             storage: createJSONStorage(() => mmkvStorage),
-            partialize: (state) => ({ runs: state.runs }), // Only persist the runs list
+            partialize: (state) => ({ runs: state.runs }),
         }
     )
 );
-
-// Check and award achievements
-async function checkAchievements(lastRun: Run, allRuns: Run[]) {
-    try {
-        const existingData = await achievementsApi.getAll();
-        const earnedBadges = new Set((existingData || []).map((a: any) => a.badge_type));
-
-        const totalRuns = allRuns.length;
-        const totalDistanceKm = allRuns.reduce((sum, r) => sum + r.distance_km, 0);
-        const bestPace = allRuns.reduce((best, r) => {
-            if (r.avg_pace_min_per_km > 0 && (best === 0 || r.avg_pace_min_per_km < best)) {
-                return r.avg_pace_min_per_km;
-            }
-            return best;
-        }, 0);
-        const longestRunKm = Math.max(...allRuns.map((r) => r.distance_km), 0);
-
-        const sortedDates = Array.from(
-            new Set(allRuns.map((r) => new Date(r.started_at).toDateString()))
-        ).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-
-        let streak = 1;
-        let maxStreak = 1;
-        for (let i = 1; i < sortedDates.length; i++) {
-            const diff = new Date(sortedDates[i - 1]).getTime() - new Date(sortedDates[i]).getTime();
-            if (diff <= 86400000 * 1.5) {
-                streak++;
-                maxStreak = Math.max(maxStreak, streak);
-            } else {
-                streak = 1;
-            }
-        }
-
-        const stats: AchievementCheckStats = {
-            totalRuns,
-            totalDistanceKm,
-            bestPaceMinPerKm: bestPace,
-            longestRunKm,
-            longestStreakDays: sortedDates.length > 0 ? maxStreak : 0,
-            lastRunDistanceKm: lastRun.distance_km,
-            lastRunStartTime: new Date(lastRun.started_at),
-            lastRunElevationGain: 0, // Simplified
-        };
-
-        for (const achievement of ACHIEVEMENTS) {
-            if (earnedBadges.has(achievement.id)) continue;
-            if (achievement.check(stats)) {
-                await achievementsApi.create(achievement.id);
-            }
-        }
-    } catch (err) {
-        console.error('Achievement check failed:', err);
-    }
-}
 
 /**
  * Check if the shoe used in the run is nearing its end of life.

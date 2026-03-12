@@ -4,9 +4,18 @@ import { Goal, Run } from '@/lib/types';
 import * as Notifications from 'expo-notifications';
 import { GOAL_TYPES } from '@/constants/goalTypes';
 
+function getISOWeekNumber(d: Date): number {
+    const date = new Date(d.getTime());
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+    const week1 = new Date(date.getFullYear(), 0, 4);
+    return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+}
+
 interface GoalState {
     goals: Goal[];
     notifiedGoalIds: Set<string>;
+    lastResetWeek: number;
     isLoading: boolean;
     error: string | null;
 
@@ -21,6 +30,7 @@ interface GoalState {
 export const useGoalStore = create<GoalState>((set, get) => ({
     goals: [],
     notifiedGoalIds: new Set<string>(),
+    lastResetWeek: getISOWeekNumber(new Date()),
     isLoading: false,
     error: null,
 
@@ -89,16 +99,25 @@ export const useGoalStore = create<GoalState>((set, get) => ({
     },
 
     checkAndNotifyCompletion: async (runs) => {
-        const { goals, notifiedGoalIds } = get();
+        const { goals, notifiedGoalIds, lastResetWeek } = get();
         if (goals.length === 0 || runs.length === 0) return;
 
         const now = new Date();
+        const currentWeek = getISOWeekNumber(now);
+
+        // Reset notifiedGoalIds if we've entered a new week
+        let activeNotified = notifiedGoalIds;
+        if (currentWeek !== lastResetWeek) {
+            activeNotified = new Set<string>();
+            set({ notifiedGoalIds: activeNotified, lastResetWeek: currentWeek });
+        }
+
         const weekStart = new Date(now);
-        weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7)); 
+        weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7));
         weekStart.setHours(0, 0, 0, 0);
 
         const thisWeekRuns = runs.filter((r) => new Date(r.started_at) >= weekStart);
-        const newNotified = new Set(notifiedGoalIds);
+        const newNotified = new Set(activeNotified);
 
         for (const goal of goals) {
             if (!goal.is_active || newNotified.has(goal.id)) continue;
