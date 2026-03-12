@@ -509,8 +509,8 @@ export default function LiveRunScreen() {
                             <Text style={[styles.statLabel, { color: Colors.textMuted }]}>Pace</Text>
                         </View>
                         <View style={[styles.statItem, { borderLeftWidth: 1, borderColor: Colors.border, paddingLeft: Spacing.md }]}>
-                            <Text style={[styles.statValue, { color: cadence > 165 ? Colors.success : Colors.textPrimary }]}>
-                                {cadence}
+                            <Text style={[styles.statValue, { color: (cadence || 0) > 165 ? Colors.success : Colors.textPrimary }]}>
+                                {cadence || 0}
                             </Text>
                             <Text style={[styles.statLabel, { color: Colors.textMuted }]}>SPM</Text>
                         </View>
@@ -522,8 +522,10 @@ export default function LiveRunScreen() {
                         <View style={styles.startControls}>
                             <TouchableOpacity style={[styles.warmupBtn, { backgroundColor: Colors.surfaceLight, borderColor: Colors.border }]} onPress={() => setShowWarmupPicker(true)}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                    <Ionicons name="timer" size={20} color={Colors.textSecondary} />
-                                    <Text style={[styles.warmupBtnText, { color: Colors.textSecondary }]}>Warmup</Text>
+                                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: location.currentLocation ? Colors.success : Colors.warning }} />
+                                    <Text style={[styles.warmupBtnText, { color: Colors.textSecondary }]}>
+                                        {location.currentLocation ? 'GPS Ready' : 'Searching...'}
+                                    </Text>
                                 </View>
                             </TouchableOpacity>
 
@@ -551,12 +553,18 @@ export default function LiveRunScreen() {
                                 )}
                             </View>
 
-                            <TouchableOpacity style={styles.startButton} onPress={handleStart}>
+                            <TouchableOpacity
+                                style={[styles.startButton, { opacity: location.currentLocation ? 1 : 0.6 }]}
+                                onPress={handleStart}
+                                disabled={!location.currentLocation}
+                            >
                                 <LinearGradient
-                                    colors={[Colors.gradientStart, Colors.gradientEnd]}
+                                    colors={location.currentLocation ? [Colors.gradientStart, Colors.gradientEnd] : [Colors.surfaceLight, Colors.surface]}
                                     style={styles.startButtonGradient}
                                 >
-                                    <Text style={[styles.startButtonText, { color: Colors.textPrimary }]}>START</Text>
+                                    <Text style={[styles.startButtonText, { color: Colors.textPrimary }]}>
+                                        {location.currentLocation ? 'GO' : 'WAITING...'}
+                                    </Text>
                                 </LinearGradient>
                             </TouchableOpacity>
                         </View>

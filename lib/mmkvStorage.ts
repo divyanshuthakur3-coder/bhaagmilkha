@@ -1,17 +1,17 @@
 import { StateStorage } from 'zustand/middleware';
-import { createMMKV } from 'react-native-mmkv';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export const storage = createMMKV();
-
+// Hotfix: Replacing MMKV with AsyncStorage to avoid C++ linker crashes on startup
+export const storage = AsyncStorage;
 export const mmkvStorage: StateStorage = {
-    setItem: (name: string, value: string) => {
-        return storage.set(name, value);
+    setItem: async (name: string, value: string) => {
+        await AsyncStorage.setItem(name, value);
     },
-    getItem: (name: string) => {
-        const value = storage.getString(name);
+    getItem: async (name: string) => {
+        const value = await AsyncStorage.getItem(name);
         return value ?? null;
     },
-    removeItem: (name: string) => {
-        return storage.remove(name);
+    removeItem: async (name: string) => {
+        await AsyncStorage.removeItem(name);
     },
 };

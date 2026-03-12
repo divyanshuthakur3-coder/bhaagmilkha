@@ -38,7 +38,7 @@ import { useTheme } from '@/context/ThemeContext';
 export default function GoalsScreen() {
     const { colors: Colors } = useTheme();
     const { goals, fetchGoals, addGoal } = useGoalStore();
-    const { runs, fetchRuns } = useRunHistoryStore();
+    const { runs = [], fetchRuns } = useRunHistoryStore();
     const profile = useUserStore((s) => s.profile);
     const unit = profile?.preferred_unit || 'km';
     const [showAddModal, setShowAddModal] = useState(false);
@@ -63,7 +63,7 @@ export default function GoalsScreen() {
 
     // Personal records
     const personalRecords = React.useMemo(() => {
-        if (runs.length === 0) return null;
+        if ((runs || []).length === 0) return null;
 
         const fastest5k = runs
             .filter((r) => r.distance_km >= 5)

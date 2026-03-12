@@ -31,7 +31,7 @@ import { FontSize, Spacing } from '@/constants/colors';
 export default function AnalyticsScreen() {
     const { colors: Colors } = useTheme();
     const router = useRouter();
-    const { runs, fetchRuns, isLoading } = useRunHistoryStore();
+    const { runs = [], fetchRuns, isLoading } = useRunHistoryStore();
     const unit = useUserStore((s) => s.profile?.preferred_unit || 'km');
     const { isPremium, checkPremiumFeature } = usePremium();
     const [refreshing, setRefreshing] = React.useState(false);
@@ -91,9 +91,10 @@ export default function AnalyticsScreen() {
 
     // Lifetime stats
     const lifetimeStats = useMemo(() => {
-        const totalDistance = runs.reduce((sum, r) => sum + r.distance_km, 0);
-        const totalDuration = runs.reduce((sum, r) => sum + r.duration_seconds, 0);
-        const totalRuns = runs.length;
+        const safeRuns = runs || [];
+        const totalDistance = safeRuns.reduce((sum, r) => sum + r.distance_km, 0);
+        const totalDuration = safeRuns.reduce((sum, r) => sum + r.duration_seconds, 0);
+        const totalRuns = safeRuns.length;
         const avgPace = totalDistance > 0
             ? (totalDuration / 60) / totalDistance
             : 0;
@@ -212,7 +213,7 @@ export default function AnalyticsScreen() {
 
     // Premium Performance Insights
     const performanceLab = useMemo(() => {
-        if (!runs.length) return null;
+        if (!(runs || []).length) return null;
 
         const validRuns = runs.filter(r => r.avg_pace_min_per_km > 0);
         if (!validRuns.length) return null;
@@ -262,7 +263,7 @@ export default function AnalyticsScreen() {
         };
     }, [runs, Colors]);
 
-    if (runs.length === 0 && !isLoading) {
+    if ((runs || []).length === 0 && !isLoading) {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
                 <Text style={[styles.header, { color: Colors.textPrimary }]}>Analytics</Text>

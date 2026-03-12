@@ -29,7 +29,7 @@ export default function ProfileScreen() {
     const router = useRouter();
     const { isPremium, checkPremiumFeature } = usePremium();
     const { profile, updateProfile, signOut } = useUserStore();
-    const { runs } = useRunHistoryStore();
+    const { runs = [] } = useRunHistoryStore();
     const [name, setName] = useState(profile?.name || '');
     const [weeklyGoal, setWeeklyGoal] = useState(String(profile?.weekly_goal_km || 20));
     const [weight, setWeight] = useState(String(profile?.weight_kg || 70));
@@ -136,13 +136,14 @@ export default function ProfileScreen() {
 
     // Calculate progress stats for UI feedback
     const stats = React.useMemo(() => {
-        const totalRuns = runs.length;
-        const totalDistanceKm = runs.reduce((sum, r) => sum + r.distance_km, 0);
-        const longestRunKm = Math.max(...runs.map((r) => r.distance_km), 0);
+        const safeRuns = runs || [];
+        const totalRuns = safeRuns.length;
+        const totalDistanceKm = safeRuns.reduce((sum, r) => sum + r.distance_km, 0);
+        const longestRunKm = Math.max(...safeRuns.map((r) => r.distance_km), 0);
 
         // streak logic from run history store
         const sortedDates = Array.from(
-            new Set(runs.map((r) => new Date(r.started_at).toDateString()))
+            new Set(safeRuns.map((r) => new Date(r.started_at).toDateString()))
         ).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
         let streak = 1;

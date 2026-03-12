@@ -1,3 +1,10 @@
+import * as Sentry from "@sentry/react-native";
+
+Sentry.init({
+  dsn: "https://your-sentry-dsn.com", // User will need to update this with their real DSN
+  tracesSampleRate: 1.0,
+});
+
 import React, { useRef, useEffect } from "react";
 import { Tabs } from "expo-router";
 import { View, Text, StyleSheet, Platform, Animated } from "react-native";
@@ -58,6 +65,19 @@ function TabIcon({ icon, label, focused }: TabIconProps) {
             >
                 {label}
             </Text>
+
+            {focused && (
+                <View
+                    style={{
+                        position: 'absolute',
+                        bottom: -14, // Adjusted for new height
+                        width: 4,
+                        height: 4,
+                        borderRadius: 2,
+                        backgroundColor: Colors.accent,
+                    }}
+                />
+            )}
         </View>
     );
 }
@@ -84,12 +104,13 @@ export default function TabLayout() {
                 tabBarStyle: [
                     styles.tabBar,
                     {
-                        backgroundColor: "rgba(18, 18, 26, 0.85)",
-                        borderColor: Colors.borderLight,
+                        backgroundColor: Colors.surface, // Solid background based on theme
+                        borderColor: Colors.border,
+                        borderTopWidth: 1,
                     },
                 ],
                 tabBarItemStyle: styles.tabBarItem,
-                tabBarActiveTintColor: Colors.textPrimary,
+                tabBarActiveTintColor: Colors.accent,
                 tabBarInactiveTintColor: Colors.textMuted,
             }}
         >
@@ -103,7 +124,11 @@ export default function TabLayout() {
                             <TabIcon icon={tab.icon} label={tab.label} focused={focused} />
                         ),
                     }}
-                    listeners={{ tabPress: handleTabPress }}
+                    listeners={{
+                        tabPress: () => {
+                            handleTabPress();
+                        }
+                    }}
                 />
             ))}
         </Tabs>
@@ -113,42 +138,43 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
     tabBar: {
         position: "absolute",
-        bottom: Platform.OS === "ios" ? 32 : 24,
-        left: Spacing.xl,
-        right: Spacing.xl,
-        height: 72,
-        borderRadius: 36,
-        borderWidth: 1,
-        elevation: 10,
+        bottom: Platform.OS === "ios" ? 34 : 20, // Slightly more gap from bottom
+        left: 20,
+        right: 20,
+        height: 84, // Increased height for better alignment
+        borderRadius: 42,
+        borderWidth: 1.5,
+        elevation: 12,
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.6,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.5,
         shadowRadius: 24,
+        paddingBottom: 0,
     },
 
     tabBarItem: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        height: 72,
+        height: 84,
     },
 
     tabItem: {
         alignItems: "center",
         justifyContent: "center",
-        gap: 2,
+        height: '100%',
+        width: '100%',
     },
 
     iconContainer: {
-        width: 44,
-        height: 28,
-        borderRadius: 14,
+        width: 48,
+        height: 32,
+        borderRadius: 16,
         alignItems: "center",
         justifyContent: "center",
+        marginBottom: 4,
     },
 
     tabLabel: {
         fontSize: 10,
         textAlign: "center",
+        letterSpacing: 0.5,
     },
 });

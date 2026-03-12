@@ -87,7 +87,8 @@ export default function HomeScreen() {
         weekStart.setDate(now.getDate() - now.getDay());
         weekStart.setHours(0, 0, 0, 0);
 
-        const thisWeek = runs.filter((r) => new Date(r.started_at) >= weekStart);
+        const safeRuns = runs || [];
+        const thisWeek = safeRuns.filter((r) => new Date(r.started_at) >= weekStart);
         const totalDistance = thisWeek.reduce((sum, r) => sum + r.distance_km, 0);
         const totalDuration = thisWeek.reduce((sum, r) => sum + r.duration_seconds, 0);
         const totalRuns = thisWeek.length;
@@ -98,8 +99,9 @@ export default function HomeScreen() {
 
     // Streak
     const streak = useMemo(() => {
-        if (runs.length === 0) return 0;
-        const runDates = new Set(runs.map((r) => new Date(r.started_at).toDateString()));
+        const safeRuns = runs || [];
+        if (safeRuns.length === 0) return 0;
+        const runDates = new Set(safeRuns.map((r) => new Date(r.started_at).toDateString()));
         let count = 0;
         const today = new Date();
         for (let i = 0; i < 365; i++) {
@@ -120,7 +122,7 @@ export default function HomeScreen() {
         return Math.min(100, (weeklyStats.totalDistance / weeklyGoal) * 100);
     }, [weeklyStats, profile]);
 
-    const recentRuns = runs.slice(0, 3);
+    const recentRuns = (runs || []).slice(0, 3);
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
@@ -141,10 +143,18 @@ export default function HomeScreen() {
                                 {profile?.name || 'Runner'}
                             </Text>
                         </View>
-                        <View style={[styles.avatarSmall, { backgroundColor: Colors.surface, borderColor: Colors.border }]}>
-                            <Text style={[styles.avatarSmallText, { color: Colors.textPrimary }]}>
-                                {(profile?.name || 'R')[0].toUpperCase()}
-                            </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                            <View style={{ alignItems: 'flex-end' }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: hasPermission ? Colors.success : Colors.error }} />
+                                    <Text style={{ fontSize: 10, fontWeight: '700', color: Colors.textSecondary }}>GPS {hasPermission ? 'READY' : 'OFF'}</Text>
+                                </View>
+                                <View style={[styles.avatarSmall, { backgroundColor: Colors.surface, borderColor: Colors.border, marginTop: 4 }]}>
+                                    <Text style={[styles.avatarSmallText, { color: Colors.textPrimary }]}>
+                                        {(profile?.name || 'R')[0].toUpperCase()}
+                                    </Text>
+                                </View>
+                            </View>
                         </View>
                     </View>
                 </View>
@@ -226,7 +236,7 @@ export default function HomeScreen() {
                             <Ionicons name="reader" size={24} color={Colors.textPrimary} />
                             <Text style={[styles.sectionTitle, { color: Colors.textPrimary, marginBottom: 0 }]}>Recent Runs</Text>
                         </View>
-                        {runs.length > 3 && (
+                        {(runs || []).length > 3 && (
                             <TouchableOpacity onPress={() => router.push('/(tabs)/history')}>
                                 <Text style={[styles.seeAll, { color: Colors.accent }]}>See All →</Text>
                             </TouchableOpacity>
@@ -329,7 +339,7 @@ export default function HomeScreen() {
                         <TouchableOpacity
                             style={styles.quickAction}
                             onPress={() => {
-                                if (runs.length > 0) {
+                                if ((runs || []).length > 0) {
                                     router.push(`/run/${runs[0].id}`);
                                 } else {
                                     Alert.alert('AI Coach', 'Start a run first to get AI insights!');
@@ -398,7 +408,7 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingTop: Spacing.xxl + Spacing.md,
         paddingHorizontal: Spacing.xl,
-        paddingBottom: 140,
+        paddingBottom: 200, // Increased to clear the larger tab bar
     },
     greeting: {
         marginBottom: Spacing.xxxl,
@@ -592,24 +602,27 @@ const styles = StyleSheet.create({
     },
     fab: {
         position: 'absolute',
-        bottom: 100,
+        bottom: 110, // A bit higher to clear the new tab bar
         alignSelf: 'center',
         borderRadius: BorderRadius.full,
-        overflow: 'hidden',
+        overflow: 'visible', // Allow shadow spread
+        ...Shadows.glow('#3B82F6'),
     },
     fabGradient: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: Spacing.sm,
-        paddingVertical: Spacing.lg,
-        paddingHorizontal: Spacing.xxl,
+        paddingVertical: 18,
+        paddingHorizontal: 32,
+        borderRadius: BorderRadius.full,
     },
     fabIcon: {
-        fontSize: 16,
+        fontSize: 18,
     },
     fabText: {
         fontSize: FontSize.lg,
-        fontWeight: '700',
+        fontWeight: '900',
+        letterSpacing: 0.5,
     },
     quickActions: {
         flexDirection: 'row',
@@ -685,7 +698,7 @@ const styles = StyleSheet.create({
     },
     fabWrapper: {
         position: 'absolute',
-        bottom: Platform.OS === 'ios' ? 120 : 110,
+        bottom: Platform.OS === 'ios' ? 140 : 125,
         alignSelf: 'center',
         zIndex: 100,
     },

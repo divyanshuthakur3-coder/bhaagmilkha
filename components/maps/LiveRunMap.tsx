@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Animated } from 'react-native';
 import MapLibre, { CameraRef } from '@maplibre/maplibre-react-native';
+import * as Haptics from 'expo-haptics';
 import { Coordinate } from '@/lib/types';
 import { Colors, Spacing, Shadows, BorderRadius, FontSize } from '@/constants/colors';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
@@ -67,32 +68,39 @@ function LiveRunMapComponent({
 
     // Track intervals for unit markers (Km or Mile)
     const unitMarkers = useMemo(() => {
+        if (coordinates.length < 2) return [];
+        
         const markers: { val: number; coord: [number, number] }[] = [];
         let totalDistKm = 0;
         const intervalKm = unit === 'mi' ? 1.60934 : 1.0;
-        let nextMarker = intervalKm;
-        let count = 1;
-
+        
+        // Use a simpler distance calculation for marker positioning
         const getDist = (c1: Coordinate, c2: Coordinate) => {
-            const R = 6371;
-            const dLat = (c2.lat - c1.lat) * (Math.PI / 180);
-            const dLng = (c2.lng - c1.lng) * (Math.PI / 180);
-            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(c1.lat * (Math.PI / 180)) * Math.cos(c2.lat * (Math.PI / 180)) *
-                Math.sin(dLng / 2) * Math.sin(dLng / 2);
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            const dLat = (c2.lat - c1.lat);
+            const dLng = (c2.lng - c1.lng);
+            // Rough approximation for performance since it's just for markers
+            return Math.sqrt(dLat * dLat + dLng * dLng) * 111; 
         };
 
-        for (let i = 1; i < coordinates.length; i++) {
-            totalDistKm += getDist(coordinates[i - 1], coordinates[i]);
-            if (totalDistKm >= nextMarker) {
-                markers.push({ val: count, coord: [coordinates[i].lng, coordinates[i].lat] });
-                nextMarker += intervalKm;
-                count++;
+        let nextThreshold = intervalKm;
+        let lastCoord = coordinates[0];
+        
+        // We can skip some coordinates for marker calculation to save CPU
+        for (let i = 1; i < coordinates.length; i += 5) {
+            const currentCoord = coordinates[i];
+            totalDistKm += getDist(lastCoord, currentCoord);
+            lastCoord = currentCoord;
+
+            if (totalDistKm >= nextThreshold) {
+                markers.push({ 
+                    val: markers.length + 1, 
+                    coord: [currentCoord.lng, currentCoord.lat] 
+                });
+                nextThreshold += intervalKm;
             }
         }
         return markers;
-    }, [coordinates, unit]);
+    }, [coordinates.length > 0 ? Math.floor(coordinates.length / 10) : 0, unit]);
 
     // Smooth camera updates
     useEffect(() => {
@@ -102,7 +110,7 @@ function LiveRunMapComponent({
                     centerCoordinate: [currentLocation.lng, currentLocation.lat],
                     zoomLevel: 17,
                     pitch: 45,
-                    animationDuration: 0,
+                    animationDuration: 2000, // Smooth fly in on first load
                 });
                 hasCenteredInitial.current = true;
             } else if (followUser) {
@@ -110,7 +118,7 @@ function LiveRunMapComponent({
                     centerCoordinate: [currentLocation.lng, currentLocation.lat],
                     zoomLevel: 17,
                     pitch: 45,
-                    animationDuration: 1000,
+                    animationDuration: 2500, // Slower, smoother following
                 });
             }
         }
@@ -118,6 +126,7 @@ function LiveRunMapComponent({
 
     const handleRecenter = () => {
         if (currentLocation && cameraRef.current) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             cameraRef.current.setCamera({
                 centerCoordinate: [currentLocation.lng, currentLocation.lat],
                 zoomLevel: 18,

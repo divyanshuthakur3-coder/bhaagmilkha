@@ -13,7 +13,7 @@ function getDevHost(): string | null {
 
 function getApiBaseUrl(): string {
     // Allow overriding for tunnel / production
-    const envUrl = (process.env.EXPO_PUBLIC_API_BASE_URL || '').trim();
+    const envUrl = (process?.env?.EXPO_PUBLIC_API_BASE_URL || 'https://runtracker-api-9pe5.onrender.com').trim();
     if (envUrl) return envUrl.replace(/\/$/, '');
 
     // Defaults for local development

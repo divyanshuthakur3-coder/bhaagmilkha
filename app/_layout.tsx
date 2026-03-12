@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Slot, useRouter, useSegments } from 'expo-router';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { auth, systemApi } from '@/lib/api';
 import { useUserStore } from '@/store/useUserStore';
@@ -12,17 +12,9 @@ import { StatusBar } from 'expo-status-bar';
 import ExpoConstants from 'expo-constants';
 import { Alert, Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
-import * as Notifications from 'expo-notifications';
+import * as SplashScreen from 'expo-splash-screen';
 
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-    }),
-});
+// Prevent the splash screen from auto-hiding before asset loading is complete.
 
 const APP_VERSION = ExpoConstants.expoConfig?.version || '1.0.0';
 
@@ -39,38 +31,66 @@ export default function RootLayout() {
 function InnerLayout() {
     const { colors, theme } = useTheme();
     const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isAppReady, setIsAppReady] = useState(false);
     const segments = useSegments();
     const router = useRouter();
     const setProfile = useUserStore((s) => s.setProfile);
 
     useEffect(() => {
-        checkAppStatus();
-        checkAuth();
-        requestNotificationPermissions();
-        if (Platform.OS === 'ios') {
-            checkBackgroundLocation();
+        async function prepare() {
+            try {
+                // Run non-critical initializations in parallel with critical ones
+                // but we wait for critical ones before hiding splash
+                await Promise.all([
+                    checkAuth(),
+                    checkAppStatus(),
+                    requestNotificationPermissions(),
+                    Platform.OS === 'ios' ? checkBackgroundLocation() : Promise.resolve(),
+                ]);
+            } catch (e) {
+                console.warn('Initialization error:', e);
+            } finally {
+                setIsAppReady(true);
+                await SplashScreen.hideAsync();
+            }
         }
+
+        prepare();
     }, []);
 
     const requestNotificationPermissions = async () => {
-        const { status } = await Notifications.requestPermissionsAsync();
-        if (status !== 'granted') {
-            console.warn('Notification permissions not granted');
+        try {
+            const { status } = await Notifications.requestPermissionsAsync();
+            if (status !== 'granted') {
+                console.warn('Notification permissions not granted');
+            }
+
+            // Just start the request to warm up GPS
+            const { status: locStatus } = await Location.getForegroundPermissionsAsync();
+            if (locStatus === 'granted') {
+                // Non-blocking warmup
+                Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            }
+        } catch (e) {
+            console.log('Location warmup/notification permission failed', e);
         }
     };
 
     const checkBackgroundLocation = async () => {
-        const { status } = await Location.getBackgroundPermissionsAsync();
-        if (status !== 'granted') {
-            Alert.alert(
-                'Background Location Required',
-                'RunTracker needs "Always" location access to track your runs while the screen is off. Please update this in settings.',
-                [
-                    { text: 'Later', style: 'cancel' },
-                    { text: 'Open Settings', onPress: () => Linking.openSettings() }
-                ]
-            );
+        try {
+            const { status } = await Location.getBackgroundPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert(
+                    'Background Location Required',
+                    'RunTracker needs "Always" location access to track your runs while the screen is off. Please update this in settings.',
+                    [
+                        { text: 'Later', style: 'cancel' },
+                        { text: 'Open Settings', onPress: () => Linking.openSettings() }
+                    ]
+                );
+            }
+        } catch (e) {
+            console.warn('Background location check failed', e);
         }
     };
 
@@ -113,14 +133,12 @@ function InnerLayout() {
             }
         } catch {
             setIsAuthenticated(false);
-        } finally {
-            setIsLoading(false);
         }
     };
 
     // Auth guard — redirect based on session state
     useEffect(() => {
-        if (isLoading || isAuthenticated === null) return;
+        if (!isAppReady || isAuthenticated === null) return;
 
         const inAuthGroup = segments[0] === '(auth)';
 
@@ -129,18 +147,13 @@ function InnerLayout() {
         } else if (isAuthenticated && inAuthGroup) {
             router.replace('/(tabs)');
         }
-    }, [isAuthenticated, segments, isLoading]);
+    }, [isAuthenticated, segments, isAppReady]);
 
     // Expose a way for auth screens to update state
     (globalThis as any).__setAuthenticated = (val: boolean) => setIsAuthenticated(val);
 
-    if (isLoading) {
-        return (
-            <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
-                <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
-                <ActivityIndicator size="large" color={colors.accent} />
-            </View>
-        );
+    if (!isAppReady) {
+        return null;
     }
 
     return (

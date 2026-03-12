@@ -26,7 +26,7 @@ import { FontSize, Spacing, BorderRadius } from '@/constants/colors';
 export default function HistoryScreen() {
     const { colors: Colors } = useTheme();
     const router = useRouter();
-    const { runs, isLoading, fetchRuns } = useRunHistoryStore();
+    const { runs = [], isLoading, fetchRuns } = useRunHistoryStore();
     const unit = useUserStore((s) => s.profile?.preferred_unit || 'km');
     const [refreshing, setRefreshing] = React.useState(false);
     const [searchQuery, setSearchQuery] = React.useState('');
@@ -115,7 +115,7 @@ export default function HistoryScreen() {
         </TouchableOpacity>
     );
 
-    if (isLoading && runs.length === 0) {
+    if (isLoading && (runs || []).length === 0) {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: Colors.background }]} edges={['top']}>
                 <Text style={[styles.header, { color: Colors.textPrimary }]}>Run History</Text>

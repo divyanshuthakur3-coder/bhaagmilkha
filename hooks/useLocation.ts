@@ -265,6 +265,25 @@ export function useLocation(): UseLocationReturn {
 
     // Cleanup  
     useEffect(() => {
+        // Pre-load location immediately on mount
+        (async () => {
+            try {
+                const { status } = await Location.getForegroundPermissionsAsync();
+                if (status === 'granted') {
+                    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                    setCurrentLocation({
+                        lat: loc.coords.latitude,
+                        lng: loc.coords.longitude,
+                        timestamp: loc.timestamp,
+                        speed: loc.coords.speed ?? 0,
+                        altitude: loc.coords.altitude ?? undefined,
+                    });
+                }
+            } catch (e) {
+                console.log('Passive location preload failed', e);
+            }
+        })();
+
         return () => {
             if (watchRef.current) {
                 watchRef.current.remove();

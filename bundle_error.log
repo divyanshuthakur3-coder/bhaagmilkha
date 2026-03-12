@@ -1,0 +1,62 @@
+﻿env: load .env
+env: export EXPO_PUBLIC_API_BASE_URL
+Starting Metro Bundler
+node.exe : Error: Unable to resolve module 
+./.expo/.virtual-metro-entry from C:\Users\Sheru 
+2.0\Desktop\apk/.: 
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program 
+Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: Unable t... 
+   Desktop\apk/.: :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+None of these files exist:
+  * .expo\.virtual-metro-entry(.android.ts|.native.ts|.ts|.andro
+id.tsx|.native.tsx|.tsx|.android.mjs|.native.mjs|.mjs|.android.j
+s|.native.js|.js|.android.jsx|.native.jsx|.jsx|.android.json|.na
+tive.json|.json|.android.cjs|.native.cjs|.cjs|.android.scss|.nat
+ive.scss|.scss|.android.sass|.native.sass|.sass|.android.css|.na
+tive.css|.css)
+  * .expo\.virtual-metro-entry
+Error: Unable to resolve module ./.expo/.virtual-metro-entry 
+from C:\Users\Sheru 2.0\Desktop\apk/.: 
+
+None of these files exist:
+  * .expo\.virtual-metro-entry(.android.ts|.native.ts|.ts|.andro
+id.tsx|.native.tsx|.tsx|.android.mjs|.native.mjs|.mjs|.android.j
+s|.native.js|.js|.android.jsx|.native.jsx|.jsx|.android.json|.na
+tive.json|.json|.android.cjs|.native.cjs|.cjs|.android.scss|.nat
+ive.scss|.scss|.android.sass|.native.sass|.sass|.android.css|.na
+tive.css|.css)
+  * .expo\.virtual-metro-entry
+    at ModuleResolver.resolveDependency (C:\Users\Sheru 2.0\Desk
+top\apk\node_modules\metro\src\node-haste\DependencyGraph\Module
+Resolution.js:114:15)
+    at DependencyGraph.resolveDependency (C:\Users\Sheru 2.0\Des
+ktop\apk\node_modules\metro\src\node-haste\DependencyGraph.js:23
+9:43)
+    at C:\Users\Sheru 2.0\Desktop\apk\node_modules\metro\src\lib
+\transformHelpers.js:161:21
+    at Server._resolveRelativePath (C:\Users\Sheru 
+2.0\Desktop\apk\node_modules\metro\src\Server.js:1157:12)
+    at MetroBundlerDevServer.resolveRelativePathAsync 
+(C:\Users\Sheru 2.0\Desktop\apk\node_modules\@expo\cli\src\start
+\server\metro\MetroBundlerDevServer.ts:1787:12)
+    at MetroBundlerDevServer.metroLoadModuleContents 
+(C:\Users\Sheru 2.0\Desktop\apk\node_modules\@expo\cli\src\start
+\server\metro\MetroBundlerDevServer.ts:540:35)
+    at MetroBundlerDevServer.legacySinglePageExportBundleAsync 
+(C:\Users\Sheru 2.0\Desktop\apk\node_modules\@expo\cli\src\start
+\server\metro\MetroBundlerDevServer.ts:867:20)
+    at exportEmbedBundleAndAssetsAsync (C:\Users\Sheru 2.0\Deskt
+op\apk\node_modules\@expo\cli\src\export\embed\exportEmbedAsync.
+ts:206:21)
+    at exportEmbedInternalAsync (C:\Users\Sheru 2.0\Desktop\apk\
+node_modules\@expo\cli\src\export\embed\exportEmbedAsync.ts:137:
+37)
+    at exportEmbedAsync (C:\Users\Sheru 2.0\Desktop\apk\node_mod
+ules\@expo\cli\src\export\embed\exportEmbedAsync.ts:117:3)
