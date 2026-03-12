@@ -125,10 +125,10 @@ export default function HomeScreen() {
     }, [runs]);
 
     // Goal progress
+    const weeklyGoal = profile?.weekly_goal_km || 20;
     const goalProgress = useMemo(() => {
-        const weeklyGoal = profile?.weekly_goal_km || 20;
         return Math.min(100, (weeklyStats.totalDistance / weeklyGoal) * 100);
-    }, [weeklyStats, profile]);
+    }, [weeklyStats, weeklyGoal]);
 
     const recentRuns = (runs || []).slice(0, 3);
 
@@ -212,7 +212,7 @@ export default function HomeScreen() {
                     </View>
                     <ProgressBar
                         progress={goalProgress}
-                        label={`${weeklyStats.totalDistance.toFixed(1)} / ${profile?.weekly_goal_km || 20} ${unit}`}
+                        label={`${unit === 'mi' ? (weeklyStats.totalDistance * 0.621371).toFixed(1) : weeklyStats.totalDistance.toFixed(1)} / ${unit === 'mi' ? (weeklyGoal * 0.621371).toFixed(1) : weeklyGoal} ${unit}`}
                         color={goalProgress >= 100 ? Colors.success : Colors.accent}
                     />
                 </Card>

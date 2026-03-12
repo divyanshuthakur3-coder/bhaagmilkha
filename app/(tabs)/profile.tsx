@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 import { useUserStore } from '@/store/useUserStore';
 import { useRunHistoryStore } from '@/store/useRunHistoryStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -49,14 +50,17 @@ export default function ProfileScreen() {
     const [confirmPassword, setConfirmPassword] = useState('');
 
     useEffect(() => {
-        fetchAchievements();
+        const controller = new AbortController();
+        fetchAchievements(controller.signal);
+        return () => controller.abort();
     }, []);
 
-    const fetchAchievements = async () => {
+    const fetchAchievements = async (signal?: AbortSignal) => {
         try {
-            const data = await achievementsApi.getAll();
+            const data = await achievementsApi.getAll(signal);
             setEarnedBadges(new Set((data || []).map((a: any) => a.badge_type)));
-        } catch (err) {
+        } catch (err: any) {
+            if (err.name === 'AbortError') return;
             console.error('Failed to fetch achievements:', err);
         }
     };
@@ -489,7 +493,9 @@ export default function ProfileScreen() {
                     </View>
                     <View style={styles.aboutRow}>
                         <Text style={[styles.aboutLabel, { color: Colors.textSecondary }]}>App Version</Text>
-                        <Text style={[styles.aboutValue, { color: Colors.textPrimary }]}>1.0.0</Text>
+                        <Text style={[styles.aboutValue, { color: Colors.textPrimary }]}>
+                            {Constants.expoConfig?.version ?? '1.1.0'}
+                        </Text>
                     </View>
                     <View style={styles.aboutRow}>
                         <Text style={[styles.aboutLabel, { color: Colors.textSecondary }]}>Build</Text>

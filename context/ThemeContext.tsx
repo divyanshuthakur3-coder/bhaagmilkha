@@ -190,21 +190,50 @@ const ThemeContext = createContext<ThemeContextType>({
     setTheme: () => { },
 });
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-    // Application is now locked to dark mode
-    const theme: ThemeMode = 'dark';
+const THEME_KEY = 'theme_preference';
 
-    const setTheme = () => {
-        console.warn('Theme is locked to dark mode');
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+    const [theme, setThemeState] = useState<ThemeMode>('dark');
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        loadTheme();
+    }, []);
+
+    const loadTheme = async () => {
+        try {
+            const savedTheme = await AsyncStorage.getItem(THEME_KEY);
+            if (savedTheme === 'light' || savedTheme === 'dark') {
+                setThemeState(savedTheme as ThemeMode);
+            }
+        } catch (e) {
+            console.error('Failed to load theme', e);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const setTheme = async (mode: ThemeMode) => {
+        try {
+            setThemeState(mode);
+            await AsyncStorage.setItem(THEME_KEY, mode);
+        } catch (e) {
+            console.error('Failed to save theme', e);
+        }
     };
 
     const toggleTheme = () => {
-        console.warn('Theme is locked to dark mode');
+        const nextMode = theme === 'dark' ? 'light' : 'dark';
+        setTheme(nextMode);
     };
 
-    const colors = DarkTheme;
-    const isDark = true;
-    const isLight = false;
+    const colors = theme === 'dark' ? DarkTheme : LightTheme;
+    const isDark = theme === 'dark';
+    const isLight = theme === 'light';
+
+    if (isLoading) {
+        return null; // Or a splash screen
+    }
 
     return (
         <ThemeContext.Provider value={{ theme, colors, isDark, isLight, toggleTheme, setTheme }}>

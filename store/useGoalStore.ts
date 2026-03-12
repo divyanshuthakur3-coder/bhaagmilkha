@@ -6,6 +6,7 @@ import { GOAL_TYPES } from '@/constants/goalTypes';
 
 interface GoalState {
     goals: Goal[];
+    notifiedGoalIds: Set<string>;
     isLoading: boolean;
     error: string | null;
 
@@ -19,6 +20,7 @@ interface GoalState {
 
 export const useGoalStore = create<GoalState>((set, get) => ({
     goals: [],
+    notifiedGoalIds: new Set<string>(),
     isLoading: false,
     error: null,
 
@@ -26,7 +28,8 @@ export const useGoalStore = create<GoalState>((set, get) => ({
         set({ isLoading: true, error: null });
         try {
             const data = await goalsApi.getAll(signal);
-            set({ goals: (data as Goal[]) || [], isLoading: false });
+            const goals = (data as Goal[]) || [];
+            set({ goals, isLoading: false });
         } catch (err: any) {
             if (err.name === 'AbortError') return;
             set({ error: err.message, isLoading: false });
@@ -86,18 +89,19 @@ export const useGoalStore = create<GoalState>((set, get) => ({
     },
 
     checkAndNotifyCompletion: async (runs) => {
-        const { goals } = get();
+        const { goals, notifiedGoalIds } = get();
         if (goals.length === 0 || runs.length === 0) return;
 
         const now = new Date();
         const weekStart = new Date(now);
-        weekStart.setDate(now.getDate() - now.getDay());
+        weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7)); 
         weekStart.setHours(0, 0, 0, 0);
 
         const thisWeekRuns = runs.filter((r) => new Date(r.started_at) >= weekStart);
+        const newNotified = new Set(notifiedGoalIds);
 
         for (const goal of goals) {
-            if (!goal.is_active) continue;
+            if (!goal.is_active || newNotified.has(goal.id)) continue;
 
             let currentValue = 0;
             switch (goal.type) {
@@ -118,13 +122,11 @@ export const useGoalStore = create<GoalState>((set, get) => ({
                     if (bestPace > 0 && bestPace <= goal.target_value) currentValue = goal.target_value;
                     break;
                 case 'streak':
-                    // Just check if today contributed to a milestone? 
-                    // Streak is complex for "notification on completion". 
-                    // Let's stick to the 100% ones first.
                     break;
             }
 
             if (currentValue >= goal.target_value) {
+                newNotified.add(goal.id);
                 const typeLabel = GOAL_TYPES.find(t => t.type === goal.type)?.label || 'Goal';
                 await Notifications.scheduleNotificationAsync({
                     content: {
@@ -132,9 +134,10 @@ export const useGoalStore = create<GoalState>((set, get) => ({
                         body: `You've reached your ${typeLabel} target of ${goal.target_value} ${GOAL_TYPES.find(t => t.type === goal.type)?.unit || ''}!`,
                         sound: true,
                     },
-                    trigger: null, // immediate
+                    trigger: null,
                 });
             }
         }
+        set({ notifiedGoalIds: newNotified });
     },
 }));

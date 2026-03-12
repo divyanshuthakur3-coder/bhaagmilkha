@@ -9,6 +9,7 @@ import {
     TouchableOpacity,
     Platform,
     RefreshControl,
+    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -38,10 +39,11 @@ import { useTheme } from '@/context/ThemeContext';
 
 export default function GoalsScreen() {
     const { colors: Colors } = useTheme();
-    const { goals, fetchGoals, addGoal } = useGoalStore(useShallow(s => ({
+    const { goals, fetchGoals, addGoal, deleteGoal } = useGoalStore(useShallow(s => ({
         goals: s.goals,
         fetchGoals: s.fetchGoals,
         addGoal: s.addGoal,
+        deleteGoal: s.deleteGoal,
     })));
     const { runs = [], fetchRuns } = useRunHistoryStore(useShallow(s => ({
         runs: s.runs,
@@ -130,6 +132,21 @@ export default function GoalsScreen() {
 
         setShowAddModal(false);
         setTargetValue('');
+    };
+
+    const handleDeleteGoal = (id: string) => {
+        Alert.alert(
+            'Delete Goal',
+            'Are you sure you want to delete this goal?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: () => deleteGoal(id),
+                },
+            ]
+        );
     };
 
     return (
@@ -237,7 +254,12 @@ export default function GoalsScreen() {
                                             Target: {gp.goal.target_value} {GOAL_TYPES.find((t) => t.type === gp.goal.type)?.unit}
                                         </Text>
                                     </View>
-                                    {gp.isCompleted && <Ionicons name="checkmark-circle" size={24} color={Colors.success} />}
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+                                        {gp.isCompleted && <Ionicons name="checkmark-circle" size={24} color={Colors.success} />}
+                                        <TouchableOpacity onPress={() => handleDeleteGoal(gp.goal.id)} hitSlop={8}>
+                                            <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
                                 <ProgressBar
                                     progress={gp.percentage}
